@@ -232,17 +232,23 @@
   let userMarker=null, poiLayer=L.layerGroup().addTo(map), routeLayer=L.layerGroup().addTo(map);
 
   async function getPosition(){
-    console.log('Richiesta geolocalizzazione...');  // Log per tracciare la chiamata
-    return new Promise((resolve)=>{
-      navigator.geolocation.getCurrentPosition(pos=>{
+  console.log('Richiesta geolocalizzazione...');  // Log per tracciare la chiamata
+  return new Promise((resolve, reject)=>{
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
         console.log('Posizione ricevuta:', pos.coords.latitude, pos.coords.longitude);  // Log per vedere i dati ricevuti
-        resolve({lat:pos.coords.latitude, lng:pos.coords.longitude, ok:true});
-      }, _=>{
-        console.log('Posizione di fallback');  // Log per vedere se sta usando la fallback
-        resolve({lat:45.0735, lng:11.7896, ok:false}); // fallback: zona Rovigo
-      }, {enableHighAccuracy:true, timeout:8000, maximumAge:0});
-    });
-  }
+        resolve({lat: pos.coords.latitude, lng: pos.coords.longitude, ok: true});
+      }, err => {
+        console.log('Errore geolocalizzazione:', err.message);  // Log per vedere l'errore
+        resolve({lat: 45.0735, lng: 11.7896, ok: false}); // fallback: zona Rovigo
+      }, {enableHighAccuracy: true, timeout: 8000, maximumAge: 0});
+    } else {
+      console.log('Geolocalizzazione non supportata dal browser');  // Log se il browser non supporta la geolocalizzazione
+      resolve({lat: 45.0735, lng: 11.7896, ok: false}); // fallback
+    }
+  });
+}
+
   async function locateAndCenter(){
     const pos = await getPosition();
     map.setView([pos.lat,pos.lng], pos.ok?15:12);
@@ -568,3 +574,4 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
 </script>
 </body>
 </html>
+
