@@ -65,7 +65,7 @@
           <option value="foot">A piedi (stime pedonali)</option>
           <option value="bike">Bici (stime rapide, routing pedonale sicuro)</option>
         </select>
-        <div class="ai-note">In “Bici” i tempi di spostamento sono ridotti (~0,35×) e le **soste** sono più brevi (−20%).</div>
+        <div class="ai-note">In “Bici” i tempi di spostamento sono ridotti (~0,35×) e le soste più brevi (−20%).</div>
         <div class="hint" id="radiusHint"></div>
       </div>
       <div class="field">
@@ -148,6 +148,10 @@
     </div>
 
     <button id="btnFind">Trova POI & Genera itinerario</button>
+    <!-- ✅ Nuovo: pulsante Google Maps -->
+    <button id="btnGMaps" style="margin-top:8px;background:linear-gradient(90deg,#22d3ee,#06b6d4)" disabled>
+      Apri itinerario in Google Maps
+    </button>
 
     <div class="itinerary">
       <div class="title" id="aiTitle"></div>
@@ -355,7 +359,6 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
     function wouldFit(idx, considerReturn){
       const sec = durations[current][idx]; if(sec==null) return null;
       const cand = coords[idx];
-      // dwell con fattore bici
       const baseDwell = dwellFor(cand.category);
       const adjDwell = moveMode==='bike' ? Math.ceil(baseDwell * BIKE_DWELL_FACTOR) : baseDwell;
       const travelMin = Math.ceil(sec/60);
@@ -372,7 +375,6 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
     while(unvisited.size){
       let candidates = [...unvisited].filter(i => (perCatCount[coords[i].category]||0) < maxPerCat);
 
-      // Enforce: ≥1 preferita se possibile
       if(enforcePreferred && !hasPreferred){
         const feasPref = candidates.filter(i=>preferSet.has(coords[i].category) && wouldFit(i,true));
         if(feasPref.length) candidates = feasPref;
@@ -392,11 +394,8 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
         }
       };
 
-      // 1) prova rispettando il blocco
       const blockCandidates = candidates.filter(i => coords[i].category === desired);
       trySelect(blockCandidates, true);
-
-      // 2) fallback su tutti
       if(bestIdx<0) trySelect(candidates, false);
       if(bestIdx<0) break;
 
@@ -410,7 +409,6 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
       blockIdx = (blockIdx + 1) % blockLen;
     }
 
-    // Rientro se anello
     let returnMin = 0;
     if(routeType==='loop' && visit.length){
       const last = visit[visit.length-1];
@@ -466,6 +464,41 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
       }catch(_){}
     }
     map.fitBounds(bounds,{padding:[28,28]});
+  }
+
+  // ---------- Google Maps launcher ----------
+  const MAX_WAYPOINTS = 8; // limito per URL corti e compatibilità
+  function buildGoogleMapsURL(origin, steps, routeType, moveMode){
+    if(!steps || !steps.length) return null;
+    const originStr = `${origin.lat},${origin.lng}`;
+
+    let destinationStr = `${steps[steps.length-1].lat},${steps[steps.length-1].lon}`;
+    let waypoints = steps.slice(0, steps.length-1);
+
+    if(routeType === 'loop'){
+      destinationStr = originStr;
+      waypoints = steps.slice(0);
+    }
+
+    let wp = waypoints.map(s => `${s.lat},${s.lon}`);
+    if(wp.length > MAX_WAYPOINTS) wp = wp.slice(0, MAX_WAYPOINTS);
+
+    const travelmode = (moveMode === 'bike') ? 'bicycling' : 'walking';
+
+    const params = new URLSearchParams({
+      api: '1',
+      origin: originStr,
+      destination: destinationStr,
+      travelmode,
+      hl: 'it'
+    });
+    if(wp.length){ params.set('waypoints', wp.join('|')); }
+
+    return `https://www.google.com/maps/dir/?${params.toString()}`;
+  }
+  function openInGoogleMaps(url){
+    if(!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer'); // su mobile apre l’app se presente
   }
 
   // ---------- AI (proxy opzionale) ----------
@@ -551,6 +584,17 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
     renderItinerary(plan.steps, plan.returnMin, routeType);
 
     await enrichWithAI(origin, prefs, timeBudget, selected, preferIds, avoidIds, blockSeq, routeType, moveMode, plan.steps);
+
+    // ✅ Abilita/aggiorna bottone Google Maps
+    const gbtn = document.getElementById('btnGMaps');
+    const gurl = buildGoogleMapsURL(origin, plan.steps, routeType, moveMode);
+    if(gurl){
+      gbtn.disabled = false;
+      gbtn.onclick = () => openInGoogleMaps(gurl);
+    } else {
+      gbtn.disabled = true;
+      gbtn.onclick = null;
+    }
   }
 
   document.getElementById('btnFind').addEventListener('click', async ()=>{
@@ -564,6 +608,3 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
 </script>
 </body>
 </html>
-
-
-
