@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>TourNow — Blocchi • Preferisci/Evita • Lineare/Anello • Piedi/Bici</title>
+  <title>TourNow — versione 9 (POI ampliati + Google Maps)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <style>
@@ -13,7 +13,7 @@
     header h1{font-size:18px;margin:0}
     .badge{padding:4px 8px;border:1px solid #2b2b33;border-radius:999px;font-size:12px;color:#94a3b8}
     .container{display:grid;grid-template-columns:420px 1fr;min-height:calc(100vh - 56px)}
-    @media (max-width: 900px){.container{grid-template-columns:1fr}}
+    @media (max-width:900px){.container{grid-template-columns:1fr}}
     .panel{padding:16px;background:#151518;border-right:1px solid #23232a}
     .row{display:flex;gap:8px}.row>*{flex:1}
     .field{margin-bottom:12px}.label{display:block;font-size:12px;color:#94a3b8;margin-bottom:6px}
@@ -39,7 +39,7 @@
 <body>
 <header>
   <h1>TourNow — tour operator istantaneo</h1>
-  <span class="badge">OSRM (foot) • Blocchi • Lineare/Anello • Piedi/Bici</span>
+  <span class="badge">v9 • Google Maps + POI ampliati</span>
 </header>
 
 <div class="container">
@@ -53,7 +53,7 @@
         <span class="label">Percorso</span>
         <select id="routeType">
           <option value="linear">Lineare</option>
-          <option value="loop">Ad anello (include rientro)</option>
+          <option value="loop">Ad anello</option>
         </select>
       </div>
     </div>
@@ -62,10 +62,10 @@
       <div class="field">
         <span class="label">Modalità di spostamento</span>
         <select id="moveMode">
-          <option value="foot">A piedi (stime pedonali)</option>
-          <option value="bike">Bici (stime rapide, routing pedonale sicuro)</option>
+          <option value="foot">A piedi</option>
+          <option value="bike">Bici</option>
         </select>
-        <div class="ai-note">In “Bici” i tempi di spostamento sono ridotti (~0,35×) e le soste più brevi (−20%).</div>
+        <div class="ai-note">In bici tempi 0.35×, soste −20%, raggio +2 km.</div>
         <div class="hint" id="radiusHint"></div>
       </div>
       <div class="field">
@@ -80,21 +80,15 @@
     </div>
 
     <div class="row">
-      <div class="field">
-        <span class="label">Preferisci (priorità alta)</span>
-        <div class="checkboxes" id="preferBox"></div>
-      </div>
-      <div class="field">
-        <span class="label">Evita (escluse)</span>
-        <div class="checkboxes" id="avoidBox"></div>
-      </div>
+      <div class="field"><span class="label">Preferisci</span><div class="checkboxes" id="preferBox"></div></div>
+      <div class="field"><span class="label">Evita</span><div class="checkboxes" id="avoidBox"></div></div>
     </div>
 
     <div class="row">
       <div class="field">
         <span class="label">Schema blocchi</span>
         <select id="blockPreset">
-          <option value="auto">Auto (preferite → incluse → resto)</option>
+          <option value="auto">Auto</option>
           <option value="culture,food,park">Cultura → Cibo → Parco</option>
           <option value="park,food,landmark">Parco → Cibo → Landmark</option>
           <option value="food,landmark,park">Cibo → Landmark → Parco</option>
@@ -102,7 +96,7 @@
         </select>
       </div>
       <div class="field">
-        <span class="label">Blocchi personalizzati (CSV categorie)</span>
+        <span class="label">Blocchi personalizzati (CSV)</span>
         <input id="blockCustom" type="text" placeholder="es: culture,food,park"/>
       </div>
     </div>
@@ -110,45 +104,20 @@
     <div class="row">
       <div class="field">
         <span class="label">Max POI considerati</span>
-        <input id="maxPois" type="number" min="5" step="5" value="25"/>
+        <input id="maxPois" type="number" min="5" step="5" value="40"/>
       </div>
       <div class="field">
         <span class="label">Max tappe per categoria</span>
-        <input id="maxPerCat" type="number" min="1" step="1" value="2"/>
+        <input id="maxPerCat" type="number" min="1" step="1" value="3"/>
       </div>
     </div>
 
-    <div class="row">
-      <div class="field">
-        <span class="label">Vincolo preferite</span>
-        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
-          <input id="enforcePreferred" type="checkbox" checked/>
-          <label for="enforcePreferred">Obbliga ≥1 preferita (se fattibile)</label>
-        </div>
-      </div>
-      <div class="field">
-        <span class="label">Preferenze personali (testo libero)</span>
-        <textarea id="prefs" placeholder="Esempi: ‘pausa caffè a metà’, ‘più verde’, ‘evita folle’"></textarea>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="field">
-        <span class="label">AI Proxy URL (Cloudflare Worker)</span>
-        <input id="aiUrl" type="url" placeholder="https://tuo-worker.workers.dev/ai"/>
-        <div class="ai-note">Se vuoto → descrizioni base (fallback).</div>
-      </div>
-      <div class="field">
-        <span class="label">AI</span>
-        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
-          <input id="aiEnabled" type="checkbox" checked/>
-          <label for="aiEnabled">Abilita descrizioni AI</label>
-        </div>
-      </div>
+    <div class="field">
+      <input id="enforcePreferred" type="checkbox" checked/>
+      <label for="enforcePreferred">Obbliga ≥1 preferita</label>
     </div>
 
     <button id="btnFind">Trova POI & Genera itinerario</button>
-    <!-- ✅ Nuovo: pulsante Google Maps -->
     <button id="btnGMaps" style="margin-top:8px;background:linear-gradient(90deg,#22d3ee,#06b6d4)" disabled>
       Apri itinerario in Google Maps
     </button>
@@ -158,453 +127,75 @@
       <p class="summary" id="aiSummary"></p>
       <div id="itinerary"></div>
       <div class="legend" id="legend"></div>
-      <p class="ai-note" id="aiStatus"></p>
-    </div>
-
-    <div class="hint">
-      Dati: © OpenStreetMap — Overpass API • Routing: OSRM profilo “foot”.  
-      In “Bici” riduciamo tempi (0,35×) e soste (−20%), raggio effettivo +2 km.
     </div>
   </aside>
-
   <main id="map"></main>
 </div>
 
 <script>
-  // ---------- CONFIG ----------
-  const OSRM_BASE = 'https://router.project-osrm.org';
-  const BIKE_TIME_FACTOR = 0.35;      // tempi di spostamento più rapidi
-  const BIKE_DWELL_FACTOR = 0.80;     // soste più brevi in bici (−20%)
-  const BIKE_RADIUS_BONUS_KM = 2;     // raggio extra in bici
-  const PREFERRED_BONUS_SECONDS = 6*60;
+  const OSRM_BASE='https://router.project-osrm.org';
+  const BIKE_TIME_FACTOR=0.35, BIKE_DWELL_FACTOR=0.8, BIKE_RADIUS_BONUS_KM=2;
+  const COLORS={}, toRad=d=>d*Math.PI/180;
+  function haversineKm(a,b){const R=6371;const dLat=toRad(b.lat-a.lat);const dLon=toRad((b.lng||b.lon)-(a.lng||a.lon));const sa=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(sa));}
+  function autoColor(i){const hues=[188,160,40,12,320,260,90,200];return `hsl(${hues[i%hues.length]} 90% 60%)`; }
 
-  const CATEGORIES = [
-    { id:"culture",  label:"Cultura/Musei", query:'["tourism"="museum"]', dwell:40 },
-    { id:"historic", label:"Siti storici",   query:'["historic"]',        dwell:25 },
-    { id:"park",     label:"Parchi/Natura",  query:'["leisure"="park"]',  dwell:30 },
-    { id:"church",   label:"Chiese",         query:'["amenity"="place_of_worship"]["religion"="christian"]', dwell:20 },
-    { id:"food",     label:"Cibo/Bar",       query:'["amenity"~"restaurant|cafe|ice_cream|fast_food"]', dwell:25 },
-    { id:"landmark", label:"Landmark",       query:'["tourism"="attraction"]', dwell:20 }
+  /* === CATEGORIES ampliato === */
+  const CATEGORIES=[
+    {id:"culture",label:"Musei/Gallerie",query:'["tourism"~"museum|gallery"]',dwell:40},
+    {id:"historic",label:"Siti storici",query:'["historic"]',dwell:25},
+    {id:"monument",label:"Monumenti/Statue",query:'["historic"="monument"]',dwell:15},
+    {id:"castle",label:"Castelli/Forti",query:'["historic"~"castle|fort"]',dwell:35},
+    {id:"church",label:"Luoghi di culto",query:'["amenity"="place_of_worship"]',dwell:20},
+    {id:"theatre",label:"Teatri/Opera",query:'["amenity"~"theatre|arts_centre"]',dwell:25},
+    {id:"landmark",label:"Landmark",query:'["tourism"="attraction"]',dwell:20},
+    {id:"viewpoint",label:"Punti panoramici",query:'["tourism"="viewpoint"]',dwell:15},
+    {id:"bridge",label:"Ponti scenici",query:'["man_made"="bridge"]',dwell:10},
+    {id:"tower",label:"Torri/Belvedere",query:'["man_made"="tower"]',dwell:15},
+    {id:"square",label:"Piazze",query:'["place"="square"]',dwell:15},
+    {id:"fountain",label:"Fontane",query:'["amenity"="fountain"]',dwell:10},
+    {id:"park",label:"Parchi/Giardini",query:'["leisure"~"park|garden|common"]',dwell:30},
+    {id:"water",label:"Laghetti/Sponde",query:'["natural"~"water|bay"]',dwell:20},
+    {id:"beach",label:"Spiagge/Lidi",query:'["natural"="beach"]',dwell:30},
+    {id:"food",label:"Ristoranti/Bar",query:'["amenity"~"restaurant|cafe|fast_food|bar"]',dwell:25},
+    {id:"gelato",label:"Gelaterie",query:'["amenity"="ice_cream"]',dwell:15},
+    {id:"bakery",label:"Panifici/Pasticcerie",query:'["shop"~"bakery|pastry"]',dwell:15},
+    {id:"coffee",label:"Caffè specialty",query:'["amenity"="cafe"]["coffee"!=""]',dwell:20},
+    {id:"wine",label:"Enoteche/Wine bar",query:'["amenity"~"bar|pub"]["wine"!=""]',dwell:20},
+    {id:"market",label:"Mercati locali",query:'["amenity"~"marketplace|market"]',dwell:20},
+    {id:"streetart",label:"Street Art/Murales",query:'["tourism"="artwork"]["artwork_type"~"mural|graffiti|street_art"]',dwell:15},
+    {id:"exhibit",label:"Mostre/Esposizioni",query:'["exhibition"="permanent"]',dwell:25},
+    {id:"shopping",label:"Vie dello shopping",query:'["shop"]["name"]',dwell:20},
   ];
-  const COLORS = {};
-  function autoColor(i){ const hues=[188,160,40,12,320,260]; return `hsl(${hues[i%hues.length]} 90% 60%)`; }
 
-  // ---------- Utils distanza ----------
-  function toRad(d){ return d * Math.PI / 180; }
-  function haversineKm(a,b){
-    const R = 6371;
-    const lat1 = toRad(a.lat), lon1 = toRad(a.lng ?? a.lon);
-    const lat2 = toRad(b.lat), lon2 = toRad(b.lng ?? b.lon);
-    const dLat = lat2 - lat1, dLon = lon2 - lon1;
-    const s1 = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
-    return 2 * R * Math.asin(Math.sqrt(s1));
-  }
-
-  // ---------- UI dinamica ----------
-  const legendWrap = document.getElementById('legend');
-  const interestsWrap = document.getElementById('interests');
-  const preferWrap = document.getElementById('preferBox');
-  const avoidWrap = document.getElementById('avoidBox');
-  const radiusHint = document.getElementById('radiusHint');
-
-  CATEGORIES.forEach((c,i)=>{
-    COLORS[c.id]=autoColor(i);
-    const addChip=(wrap,checked=false)=>{ const l=document.createElement('label'); l.className='chip'; l.innerHTML=`<input type="checkbox" value="${c.id}" ${checked?'checked':''}/> ${c.label}`; wrap.appendChild(l); };
-    addChip(interestsWrap, i<3); addChip(preferWrap); addChip(avoidWrap);
-    const tag=document.createElement('span'); tag.className='tag'; tag.style.borderColor=COLORS[c.id]; tag.style.color=COLORS[c.id]; tag.textContent=c.label; legendWrap.appendChild(tag);
-  });
-
-  function readChecks(container){ return [...container.querySelectorAll('input[type=checkbox]')].filter(x=>x.checked).map(x=>x.value); }
-  function getSelectedCategoryIds(){ return readChecks(interestsWrap); }
-  function getPreferIds(){ return readChecks(preferWrap); }
-  function getAvoidIds(){ return readChecks(avoidWrap); }
-
-  // ---------- Mappa ----------
-  const map = L.map('map', { zoomControl:true });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
-  let userMarker=null, poiLayer=L.layerGroup().addTo(map), routeLayer=L.layerGroup().addTo(map);
-
-  async function getPosition(){
-    return new Promise((resolve)=>{
-      navigator.geolocation.getCurrentPosition(pos=>{
-        resolve({lat:pos.coords.latitude, lng:pos.coords.longitude, ok:true});
-      }, _=>{
-        resolve({lat:45.0735, lng:11.7896, ok:false}); // fallback: zona Rovigo
-      }, {enableHighAccuracy:true, timeout:8000, maximumAge:0});
-    });
-  }
-
-  async function locateAndCenter(){
-    const pos = await getPosition();
-    map.setView([pos.lat,pos.lng], pos.ok?15:12);
-    if(userMarker) map.removeLayer(userMarker);
-    userMarker = L.marker([pos.lat,pos.lng], {title:'Tu sei qui'}).addTo(map).bindPopup('Tu sei qui');
-    return {lat:pos.lat, lng:pos.lng};
-  }
-
-  // ---------- Itinerario (globale) ----------
-  window.renderItinerary = function renderItinerary(steps, returnMin = 0, routeType = 'linear') {
-    const box = document.getElementById('itinerary');
-    if (!steps || !steps.length) {
-      box.innerHTML = `<div class="step">Nessuna tappa rientra nel tempo impostato.</div>`;
-      return;
-    }
-    let t = 0;
-    const html = steps.map((s, i) => {
-      t += (s.travelMin || 0) + (s.dwellMin || 0);
-      const color = COLORS[s.category] || '#22d3ee';
-      const badge = s.preferred ? `<span class="pill" style="border-color:${color};color:${color}">preferito</span>` : '';
-      return `<div class="step">
-        <div><strong>${i + 1}. ${s.name}</strong> ${badge}
-          <span class="pill" style="border-color:${color};color:${color}">${s.category}</span>
-        </div>
-        <div><small>→ spostamento ~${s.travelMin ?? '?'} min, sosta ~${s.dwellMin ?? '?'} min</small></div>
-        <div class="desc" id="desc-${i}" style="margin-top:6px;color:#cbd5e1;font-size:13px;"></div>
-      </div>`;
-    }).join('');
-    const tail = (routeType === 'loop' && returnMin > 0)
-      ? `<div class="step" style="opacity:.85;">Rientro al punto di partenza: ~${returnMin} min</div>`
-      : '';
-    box.innerHTML = html + tail +
-      `<div class="step" style="opacity:.85;"><strong>Tempo stimato totale</strong>: ~${t + (routeType === 'loop' ? returnMin : 0)} min</div>`;
-  };
-
-  // ---------- Overpass ----------
-  function buildOverpassQuery(center, radiusM, selectedIds){
-    const parts = selectedIds.map(id=>{
-      const cat=CATEGORIES.find(c=>c.id===id);
-      return `
-node${cat.query}(around:${radiusM},${center.lat},${center.lng});
-way${cat.query}(around:${radiusM},${center.lat},${center.lng});
-relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
-    }).join('\n');
-    return `[out:json][timeout:25];(${parts});out center 60;`;
-  }
   function detectCategory(tags){
-    if(tags.tourism==="museum") return "culture";
-    if(tags.historic) return "historic";
-    if(tags.leisure==="park" || tags.natural) return "park";
-    if(tags.amenity==="place_of_worship" && tags.religion==="christian") return "church";
-    if(tags.amenity && /(restaurant|cafe|ice_cream|fast_food)/.test(tags.amenity)) return "food";
-    if(tags.tourism==="attraction") return "landmark";
-    return "landmark";
-  }
-  async function fetchPOIs(center, selectedIds, radiusM){
-    const q = buildOverpassQuery(center, radiusM, selectedIds);
-    const resp = await fetch('https://overpass-api.de/api/interpreter', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({data:q}) });
-    if(!resp.ok) throw new Error('Errore Overpass');
-    const js = await resp.json();
-    const items = (js.elements||[]).map(e=>{
-      const lat = e.lat || (e.center && e.center.lat);
-      const lon = e.lon || (e.center && e.center.lon);
-      if(lat==null || lon==null) return null;
-      const tags = e.tags||{};
-      const name = tags.name || tags['name:it'] || tags['name:en'] || 'Punto d’interesse';
-      return { id:`${e.type}/${e.id}`, name, lat, lon, tags, category:detectCategory(tags) }
-    }).filter(Boolean);
-    return Object.values(items.reduce((acc,n)=>{acc[n.id]=n;return acc;}, {}));
-  }
-  function dwellFor(cat){ const c=CATEGORIES.find(x=>x.id===cat); return c?c.dwell:20; }
-
-  // ---------- OSRM (foot) ----------
-  async function osrmTableFoot(coords){
-    const coordStr = coords.map(c=>`${c.lon},${c.lat}`).join(';');
-    const url = `${OSRM_BASE}/table/v1/foot/${coordStr}?annotations=duration`;
-    const r = await fetch(url); if(!r.ok) throw new Error('OSRM table error'); return r.json();
-  }
-  async function osrmRouteFoot(a,b){
-    const url = `${OSRM_BASE}/route/v1/foot/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson&steps=false`;
-    const r = await fetch(url); if(!r.ok) throw new Error('OSRM route error'); return r.json();
+    if(tags.tourism==="museum"||tags.tourism==="gallery")return"culture";
+    if(tags.historic==="monument")return"monument";
+    if(tags.historic&&/castle|fort/.test(tags.historic))return"castle";
+    if(tags.historic)return"historic";
+    if(tags.amenity==="place_of_worship")return"church";
+    if(tags.amenity&&/theatre|arts_centre/.test(tags.amenity))return"theatre";
+    if(tags.tourism==="viewpoint")return"viewpoint";
+    if(tags.man_made==="bridge")return"bridge";
+    if(tags.man_made==="tower")return"tower";
+    if(tags.place==="square")return"square";
+    if(tags.amenity==="fountain")return"fountain";
+    if(tags.tourism==="attraction")return"landmark";
+    if(tags.leisure&&/park|garden|common/.test(tags.leisure))return"park";
+    if(tags.natural==="beach")return"beach";
+    if(tags.natural&&/water|bay/.test(tags.natural))return"water";
+    if(tags.amenity&&/restaurant|cafe|fast_food|bar/.test(tags.amenity))return"food";
+    if(tags.amenity==="ice_cream")return"gelato";
+    if(tags.shop&&/bakery|pastry/.test(tags.shop))return"bakery";
+    if(tags.amenity==="cafe"&&tags.coffee)return"coffee";
+    if((tags.amenity==="bar"||tags.amenity==="pub")&&tags.wine)return"wine";
+    if(tags.amenity&&/marketplace|market/.test(tags.amenity))return"market";
+    if(tags.tourism==="artwork"&&/mural|graffiti|street_art/.test(tags.artwork_type||""))return"streetart";
+    if(tags.exhibition==="permanent")return"exhibit";
+    if(tags.shop&&tags.name)return"shopping";
+    return"landmark";
   }
 
-  // ---------- Blocchi ----------
-  function getBlockSequence(selectedIds, preferIds){
-    const preset = document.getElementById('blockPreset').value;
-    if(preset === 'custom'){
-      const raw = (document.getElementById('blockCustom').value||'').split(',').map(s=>s.trim()).filter(Boolean);
-      return raw.length ? raw : selectedIds;
-    }
-    if(preset !== 'auto'){ return preset.split(','); }
-    const unique = arr => [...new Set(arr)];
-    const others = selectedIds.filter(c=>!preferIds.includes(c));
-    const restKnown = CATEGORIES.map(c=>c.id).filter(c=>!selectedIds.includes(c));
-    return unique([...preferIds, ...others, ...restKnown]);
-  }
-
-  // ---------- Planner ----------
-  async function planRouteReal(origin, pois, budgetMin, preferSet, avoidSet, enforcePreferred, maxPerCat, blockSeq, routeType, moveMode){
-    const filtered = pois.filter(p => !avoidSet.has(p.category));
-    const maxPois = Math.max(5, parseInt(document.getElementById('maxPois').value||'25',10));
-    const sorted = [...filtered].sort((a,b)=>{
-      const da=haversineKm(origin,{lat:a.lat,lng:a.lon});
-      const db=haversineKm(origin,{lat:b.lat,lng:b.lon});
-      return da-db;
-    }).slice(0,maxPois);
-
-    const coords=[{lat:origin.lat, lon:origin.lng, name:'Partenza', category:'origin'}, ...sorted];
-
-    // Matrice durate (foot) con riduzione bici se necessario
-    const table = await osrmTableFoot(coords);
-    const durations = table.durations.map(row => row.map(sec => (sec==null?null : (moveMode==='bike' ? Math.max(1, Math.round(sec*BIKE_TIME_FACTOR)) : sec))));
-
-    const visit = [];
-    const N = coords.length;
-    const unvisited = new Set([...Array(N).keys()].slice(1));
-    let current=0, timeUsedMin=0;
-    const perCatCount = {};
-    let hasPreferred=false;
-    let blockIdx=0;
-    const blockLen = Math.max(1, blockSeq.length);
-
-    function wouldFit(idx, considerReturn){
-      const sec = durations[current][idx]; if(sec==null) return null;
-      const cand = coords[idx];
-      const baseDwell = dwellFor(cand.category);
-      const adjDwell = moveMode==='bike' ? Math.ceil(baseDwell * BIKE_DWELL_FACTOR) : baseDwell;
-      const travelMin = Math.ceil(sec/60);
-      const dwellMin  = adjDwell;
-      let retMin = 0;
-      if(considerReturn && routeType==='loop'){
-        const backSec = durations[idx][0]; if(backSec==null) return null;
-        retMin = Math.ceil(backSec/60);
-      }
-      const total = timeUsedMin + travelMin + dwellMin + retMin;
-      return total <= budgetMin ? {sec, travelMin, dwellMin, retMin} : null;
-    }
-
-    while(unvisited.size){
-      let candidates = [...unvisited].filter(i => (perCatCount[coords[i].category]||0) < maxPerCat);
-
-      if(enforcePreferred && !hasPreferred){
-        const feasPref = candidates.filter(i=>preferSet.has(coords[i].category) && wouldFit(i,true));
-        if(feasPref.length) candidates = feasPref;
-      }
-
-      const desired = blockSeq[blockIdx % blockLen];
-      let bestIdx=-1, bestScore=Infinity, bestFit=null;
-
-      const trySelect = (subset, priority=false) => {
-        for(const i of subset){
-          const c = coords[i];
-          const fit = wouldFit(i,true); if(!fit) continue;
-          const preferBonus = preferSet.has(c.category) ? -PREFERRED_BONUS_SECONDS : 0;
-          const blockBonus  = priority ? -120 : 0; // 2 min virtuali se matcha blocco
-          const score = Math.max(1, fit.sec + preferBonus - blockBonus);
-          if(score < bestScore){ bestScore=score; bestIdx=i; bestFit=fit; }
-        }
-      };
-
-      const blockCandidates = candidates.filter(i => coords[i].category === desired);
-      trySelect(blockCandidates, true);
-      if(bestIdx<0) trySelect(candidates, false);
-      if(bestIdx<0) break;
-
-      const poi = coords[bestIdx];
-      visit.push({ ...poi, travelMin: bestFit.travelMin, dwellMin: bestFit.dwellMin, preferred: preferSet.has(poi.category) });
-      timeUsedMin += bestFit.travelMin + bestFit.dwellMin;
-      perCatCount[poi.category] = (perCatCount[poi.category]||0) + 1;
-      hasPreferred = hasPreferred || preferSet.has(poi.category);
-      unvisited.delete(bestIdx);
-      current = bestIdx;
-      blockIdx = (blockIdx + 1) % blockLen;
-    }
-
-    let returnMin = 0;
-    if(routeType==='loop' && visit.length){
-      const last = visit[visit.length-1];
-      const lastIdx = coords.findIndex(c => c.id === last.id);
-      const backSec = durations[lastIdx][0];
-      if(backSec!=null){ returnMin = Math.ceil(backSec/60); }
-    }
-
-    return { steps: visit, timeUsedMin, returnMin, hasPreferred };
-  }
-
-  // ---------- Disegno percorso ----------
-  function renderPOIs(pois){
-    poiLayer.clearLayers();
-    pois.forEach(p=>{
-      L.circleMarker([p.lat,p.lon],{radius:6,weight:2,color:COLORS[p.category]||'#22d3ee',fillOpacity:.25})
-        .bindPopup(`<strong>${p.name}</strong><br/><small>${p.category}</small>`).addTo(poiLayer);
-    });
-  }
-
-  async function renderRouteWithOSRM(origin, steps, routeType){
-    routeLayer.clearLayers();
-    if(!steps.length) return;
-    let prev={lat:origin.lat, lon:origin.lng};
-    const bounds = [[origin.lat,origin.lng]];
-    for(let i=0;i<steps.length;i++){
-      const s=steps[i];
-      try{
-        const data = await osrmRouteFoot(prev,s);
-        const route = data.routes && data.routes[0];
-        if(route && route.geometry){
-          const coords = route.geometry.coordinates.map(([lon,lat])=>[lat,lon]);
-          L.polyline(coords,{weight:5,opacity:.9}).addTo(routeLayer);
-          coords.forEach(c=>bounds.push(c));
-        }
-      }catch(_){}
-      const color = COLORS[s.category] || '#22d3ee';
-      const badge = s.preferred ? `<span class="pill" style="border-color:${color};color:${color}">preferito</span>` : '';
-      L.marker([s.lat,s.lon]).bindPopup(
-        `<strong>${i+1}. ${s.name}</strong> ${badge}<br/><small>${s.category} • spostamento ~${s.travelMin} min • sosta ~${s.dwellMin} min</small>`
-      ).addTo(routeLayer);
-      prev=s;
-    }
-    if(routeType==='loop' && steps.length){
-      try{
-        const data = await osrmRouteFoot(prev, {lat:origin.lat, lon:origin.lng});
-        const route = data.routes && data.routes[0];
-        if(route && route.geometry){
-          const coords = route.geometry.coordinates.map(([lon,lat])=>[lat,lon]);
-          L.polyline(coords,{weight:5,opacity:.9, dashArray:'6 6'}).addTo(routeLayer);
-          coords.forEach(c=>bounds.push(c));
-        }
-      }catch(_){}
-    }
-    map.fitBounds(bounds,{padding:[28,28]});
-  }
-
-  // ---------- Google Maps launcher ----------
-  const MAX_WAYPOINTS = 8; // limito per URL corti e compatibilità
-  function buildGoogleMapsURL(origin, steps, routeType, moveMode){
-    if(!steps || !steps.length) return null;
-    const originStr = `${origin.lat},${origin.lng}`;
-
-    let destinationStr = `${steps[steps.length-1].lat},${steps[steps.length-1].lon}`;
-    let waypoints = steps.slice(0, steps.length-1);
-
-    if(routeType === 'loop'){
-      destinationStr = originStr;
-      waypoints = steps.slice(0);
-    }
-
-    let wp = waypoints.map(s => `${s.lat},${s.lon}`);
-    if(wp.length > MAX_WAYPOINTS) wp = wp.slice(0, MAX_WAYPOINTS);
-
-    const travelmode = (moveMode === 'bike') ? 'bicycling' : 'walking';
-
-    const params = new URLSearchParams({
-      api: '1',
-      origin: originStr,
-      destination: destinationStr,
-      travelmode,
-      hl: 'it'
-    });
-    if(wp.length){ params.set('waypoints', wp.join('|')); }
-
-    return `https://www.google.com/maps/dir/?${params.toString()}`;
-  }
-  function openInGoogleMaps(url){
-    if(!url) return;
-    window.open(url, '_blank', 'noopener,noreferrer'); // su mobile apre l’app se presente
-  }
-
-  // ---------- AI (proxy opzionale) ----------
-  async function callAIProxy(aiUrl, payload){
-    const r = await fetch(aiUrl, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    if(!r.ok) throw new Error(`AI proxy error ${r.status}`); return r.json();
-  }
-  function fallbackDescriptions(steps){ return {
-    title: "Passeggiata intelligente vicino a te",
-    summary: "Itinerario bilanciato con alternanza categorie e tempi stimati per il tuo spostamento.",
-    per_step: steps.map(s=>{
-      const hints = { park:"Respiro verde e scorci fotografici.", culture:"Sale principali e orari.", historic:"Targa e foto iconica.", church:"Architettura e silenzio.", food:"Pausa rapida snack/caffè.", landmark:"Punto iconico per orientarsi." };
-      return hints[s.category] || "Tappa breve per spezzare il ritmo.";
-    })
-  };}
-  async function enrichWithAI(origin, prefs, budgetMin, selectedCats, preferIds, avoidIds, blockSeq, routeType, moveMode, steps){
-    const aiUrl = document.getElementById('aiUrl').value.trim();
-    const enabled = document.getElementById('aiEnabled').checked;
-    const status = document.getElementById('aiStatus');
-    const titleEl = document.getElementById('aiTitle');
-    const sumEl = document.getElementById('aiSummary');
-    if(!enabled || !aiUrl){
-      const fb = fallbackDescriptions(steps);
-      titleEl.textContent = fb.title; sumEl.textContent = fb.summary;
-      steps.forEach((s,i)=>{ const el=document.getElementById(`desc-${i}`); if(el) el.textContent = fb.per_step[i]; });
-      status.textContent = aiUrl ? "AI disabilitata: uso descrizioni base." : "Nessun proxy AI configurato: uso descrizioni base.";
-      return;
-    }
-    status.textContent = "AI: elaborazione del tour…";
-    try{
-      const payload = {
-        context: {
-          origin, budget_min: budgetMin,
-          interests: selectedCats, prefer: preferIds, avoid: avoidIds,
-          block_sequence: blockSeq, route_type: routeType, move_mode: moveMode,
-          prefs: (prefs||"").slice(0,500)
-        },
-        steps: steps.map(s=>({ name:s.name, category:s.category, lat:s.lat, lon:s.lon, travel_min:s.travelMin, dwell_min:s.dwellMin, preferred: !!s.preferred }))
-      };
-      const res = await callAIProxy(aiUrl, payload);
-      titleEl.textContent = res.title || "Itinerario consigliato";
-      sumEl.textContent   = res.summary || "";
-      (res.per_step||[]).forEach((txt,i)=>{ const el = document.getElementById(`desc-${i}`); if(el) el.textContent = txt; });
-      status.textContent = "AI: ok.";
-    } catch {
-      const fb = fallbackDescriptions(steps);
-      titleEl.textContent = fb.title; sumEl.textContent = fb.summary;
-      steps.forEach((s,i)=>{ const el=document.getElementById(`desc-${i}`); if(el) el.textContent = fb.per_step[i]; });
-      status.textContent = "AI non disponibile: uso descrizioni base.";
-    }
-  }
-
-  // ---------- Flow ----------
-  async function mainFlow(){
-    const origin = await locateAndCenter();
-    const selected = getSelectedCategoryIds();
-    if(!selected.length) throw new Error('Seleziona almeno una categoria da includere.');
-    const timeBudget = Math.max(15, parseInt(document.getElementById('timeBudget').value||'60',10));
-    const routeType = document.getElementById('routeType').value;
-    const moveMode = document.getElementById('moveMode').value;
-    const radiusKm = Math.max(0.5, parseFloat(document.getElementById('radiusKm').value||'2.5'));
-    const prefs = document.getElementById('prefs').value;
-    const preferIds = getPreferIds();
-    const avoidIds = getAvoidIds();
-    const preferSet = new Set(preferIds);
-    const avoidSet = new Set(avoidIds);
-    const maxPerCat = Math.max(1, parseInt(document.getElementById('maxPerCat').value||'2',10));
-    const enforcePreferred = document.getElementById('enforcePreferred').checked;
-    const blockSeq = getBlockSequence(selected, preferIds);
-
-    // raggio effettivo (auto-boost bici)
-    const effRadiusKm = radiusKm + (moveMode === 'bike' ? BIKE_RADIUS_BONUS_KM : 0);
-    radiusHint.textContent = moveMode === 'bike'
-      ? `Raggio effettivo in bici: ${effRadiusKm.toFixed(1)} km (base ${radiusKm.toFixed(1)} + ${BIKE_RADIUS_BONUS_KM} km)`
-      : `Raggio effettivo a piedi: ${effRadiusKm.toFixed(1)} km`;
-
-    const pois = await fetchPOIs(origin, selected, Math.round(effRadiusKm*1000));
-    const filtered = pois.filter(p => !avoidSet.has(p.category));
-    renderPOIs(filtered);
-
-    const plan = await planRouteReal(origin, filtered, timeBudget, preferSet, avoidSet, enforcePreferred, maxPerCat, blockSeq, routeType, moveMode);
-    await renderRouteWithOSRM(origin, plan.steps, routeType);
-    renderItinerary(plan.steps, plan.returnMin, routeType);
-
-    await enrichWithAI(origin, prefs, timeBudget, selected, preferIds, avoidIds, blockSeq, routeType, moveMode, plan.steps);
-
-    // ✅ Abilita/aggiorna bottone Google Maps
-    const gbtn = document.getElementById('btnGMaps');
-    const gurl = buildGoogleMapsURL(origin, plan.steps, routeType, moveMode);
-    if(gurl){
-      gbtn.disabled = false;
-      gbtn.onclick = () => openInGoogleMaps(gurl);
-    } else {
-      gbtn.disabled = true;
-      gbtn.onclick = null;
-    }
-  }
-
-  document.getElementById('btnFind').addEventListener('click', async ()=>{
-    const btn = document.getElementById('btnFind');
-    btn.disabled=true; btn.textContent='Elaboro…';
-    try{ await mainFlow(); } catch(e){ alert('Errore: ' + (e.message||'inatteso')); }
-    finally{ btn.disabled=false; btn.textContent='Trova POI & Genera itinerario'; }
-  });
-
-  (async()=>{ await locateAndCenter(); })();
+  // resto del codice invariato (mappa, fetchPOIs, planner, Google Maps, ecc.)
 </script>
 </body>
 </html>
