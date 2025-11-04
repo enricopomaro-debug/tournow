@@ -232,10 +232,13 @@
   let userMarker=null, poiLayer=L.layerGroup().addTo(map), routeLayer=L.layerGroup().addTo(map);
 
   async function getPosition(){
+    console.log('Richiesta geolocalizzazione...');  // Log per tracciare la chiamata
     return new Promise((resolve)=>{
       navigator.geolocation.getCurrentPosition(pos=>{
+        console.log('Posizione ricevuta:', pos.coords.latitude, pos.coords.longitude);  // Log per vedere i dati ricevuti
         resolve({lat:pos.coords.latitude, lng:pos.coords.longitude, ok:true});
       }, _=>{
+        console.log('Posizione di fallback');  // Log per vedere se sta usando la fallback
         resolve({lat:45.0735, lng:11.7896, ok:false}); // fallback: zona Rovigo
       }, {enableHighAccuracy:true, timeout:8000, maximumAge:0});
     });
@@ -262,6 +265,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
 
   async function fetchPOIs(center, selectedIds, radiusM){
     const q = buildOverpassQuery(center, radiusM, selectedIds);
+    console.log("Richiesta POI:", q);  // Log della query di ricerca
     // tentativo 1 — endpoint principale
     try{
       const resp = await fetch('https://overpass-api.de/api/interpreter', {
@@ -445,6 +449,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
 
   /* ================== Rendering ================== */
   function renderPOIs(pois){
+    console.log('Rendering POIs...', pois);  // Log per tracciare la funzione di rendering
     poiLayer.clearLayers();
     pois.forEach(p=>{
       L.circleMarker([p.lat,p.lon],{radius:6,weight:2,color:COLORS[p.category]||'#22d3ee',fillOpacity:.25})
@@ -518,43 +523,12 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
   }
   function openInGoogleMaps(url){ if(!url) return; window.open(url, '_blank', 'noopener,noreferrer'); }
 
-  /* ================== AI (fallback locale, nessuna config obbligatoria) ================== */
-  function fallbackDescriptions(steps){ return {
-    title: "Passeggiata intelligente vicino a te",
-    summary: "Itinerario bilanciato con alternanza categorie e tempi stimati.",
-    per_step: steps.map(s=>{
-      const hints = { park:"Respiro verde e scorci fotografici.", culture:"Sale principali e orari.", historic:"Targa e foto iconica.", church:"Architettura e silenzio.", food:"Pausa rapida snack/caffè.", landmark:"Punto iconico per orientarsi.", viewpoint:"Vista e foto.", streetart:"Scatto colorato." };
-      return hints[s.category] || "Tappa breve per spezzare il ritmo.";
-    })
-  };}
-  async function enrichWithAI(_origin,_prefs,_budgetMin,_selected,_prefer,_avoid,_block,_route,_move,steps){
-    const titleEl = document.getElementById('aiTitle');
-    const sumEl = document.getElementById('aiSummary');
-    const status = document.getElementById('aiStatus');
-    const fb = fallbackDescriptions(steps);
-    titleEl.textContent = fb.title; sumEl.textContent = fb.summary;
-    steps.forEach((s,i)=>{ const el=document.getElementById(`desc-${i}`); if(el) el.textContent = fb.per_step[i]; });
-    if(status) status.textContent = "Descrizioni base attive.";
-  }
-
   /* ================== MAIN FLOW ================== */
-  function getBlockSequenceUI(){
-    const selected = getSelectedCategoryIds();
-    const preferIds = getPreferIds();
-    const preset = document.getElementById('blockPreset').value;
-    if(preset === 'custom'){
-      const raw = (document.getElementById('blockCustom').value||'').split(',').map(s=>s.trim()).filter(Boolean);
-      return raw.length ? raw : selected;
-    }
-    if(preset !== 'auto'){ return preset.split(','); }
-    const unique = arr => [...new Set(arr)];
-    const others = selected.filter(c=>!preferIds.includes(c));
-    const restKnown = CATEGORIES.map(c=>c.id).filter(c=>!selected.includes(c));
-    return unique([...preferIds, ...others, ...restKnown]);
-  }
-
   async function mainFlow(){
+    console.log('Inizio generazione itinerario...');
     const origin = await locateAndCenter();
+    console.log('Posizione iniziale:', origin);
+
     const selected = getSelectedCategoryIds();
     if(!selected.length) throw new Error('Seleziona almeno una categoria.');
     const timeBudget = Math.max(15, parseInt(document.getElementById('timeBudget').value||'60',10));
@@ -577,8 +551,6 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
     const plan = await planRouteReal(origin, filtered, timeBudget, preferSet, avoidSet, enforcePreferred, maxPerCat, blockSeq, routeType, moveMode);
     await renderRouteWithOSRM(origin, plan.steps, routeType);
     await renderItinerary(plan.steps, plan.returnMin, routeType);
-
-    await enrichWithAI(origin, '', timeBudget, selected, preferIds, avoidIds, blockSeq, routeType, moveMode, plan.steps);
 
     const gbtn = document.getElementById('btnGMaps');
     const gurl = buildGoogleMapsURL(origin, plan.steps, routeType, moveMode);
