@@ -167,6 +167,19 @@
     {id:"shopping",label:"Vie dello shopping",query:'["shop"]["name"]',dwell:20},
   ];
 
+  // 🔹 Ricostruisce dinamicamente i chip UI
+  const interestsWrap=document.getElementById('interests');
+  const preferWrap=document.getElementById('preferBox');
+  const avoidWrap=document.getElementById('avoidBox');
+  const legendWrap=document.getElementById('legend');
+
+  CATEGORIES.forEach((c,i)=>{
+    COLORS[c.id]=autoColor(i);
+    const addChip=(wrap)=>{const l=document.createElement('label');l.className='chip';l.innerHTML=`<input type="checkbox" value="${c.id}" ${i<5?'checked':''}/> ${c.label}`;wrap.appendChild(l);};
+    addChip(interestsWrap); addChip(preferWrap); addChip(avoidWrap);
+    const tag=document.createElement('span');tag.className='tag';tag.style.borderColor=COLORS[c.id];tag.style.color=COLORS[c.id];tag.textContent=c.label;legendWrap.appendChild(tag);
+  });
+
   function detectCategory(tags){
     if(tags.tourism==="museum"||tags.tourism==="gallery")return"culture";
     if(tags.historic==="monument")return"monument";
@@ -195,7 +208,8 @@
     return"landmark";
   }
 
-  // resto del codice invariato (mappa, fetchPOIs, planner, Google Maps, ecc.)
+  // ⚙️ Al resto del codice (mappa, planner, AI, Google Maps, ecc.) lascia tutto invariato
 </script>
 </body>
 </html>
+
