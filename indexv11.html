@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>TourNow — v11+manual (FIX: usa sempre la partenza manuale)</title>
+  <title>TourNow — v11+manual (partenza manuale + percorso disegnato)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
   <style>
@@ -51,7 +51,7 @@
 <body>
 <header>
   <h1>TourNow — tour operator istantaneo</h1>
-  <span class="badge">v11 + partenza manuale (fix uso origine manuale)</span>
+  <span class="badge">v11 + partenza manuale • percorso disegnato</span>
 </header>
 
 <div class="container">
@@ -183,8 +183,6 @@
   const BIKE_TIME_FACTOR=0.35, BIKE_DWELL_FACTOR=0.8, BIKE_RADIUS_BONUS_KM=2;
   const PREFERRED_BONUS_SECONDS=6*60;
   const COLORS={}, toRad=d=>d*Math.PI/180;
-
-  // FIX 1: haversine sicuro per .lng/.lon
   function haversineKm(a,b){
     const R=6371;
     const la1=a.lat, la2=b.lat;
@@ -351,8 +349,8 @@
       const res = await fetch(url.toString(), {
         headers: {
           'Accept':'application/json',
-          // ⚠️ Sostituisci con una tua email per rispettare la policy Nominatim
-          'User-Agent': 'TourNow/v11+manual (+contact: your-email@example.com)'
+          // ⚠️ METTI LA TUA EMAIL QUI sotto per rispettare la policy di Nominatim
+          'User-Agent': 'TourNow/v11+manual (+contact: enricopomaro@gmail.com)'
         }
       });
       if(!res.ok) throw new Error('Geo API non disponibile');
@@ -414,6 +412,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
         if(dedup.length) return dedup;
       }catch(_){}
     }
+    // fallback sintetico
     const synth = Array.from({length:6}).map((_,i)=>{
       const ang = (i/6)*2*Math.PI;
       const dKm = Math.min( radiusM/1000, 1.2 );
@@ -446,7 +445,8 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
       const r = await fetch(url); if(!r.ok) throw new Error('osrm_'+r.status);
       return await r.json();
     }catch(_){
-      return { routes:[{ geometry:{ type:'LineString', coordinates:[[a.lon,a.lat],[b.lon,b.lat]] } }] };
+      // tornerà null e useremo fallback dritto
+      return null;
     }
   }
 
@@ -464,7 +464,6 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
     return unique([...preferIds, ...others, ...restKnown]);
   }
 
-  // FIX 2: la matrice e la rotta partono dall'origine (manuale, se selezionata)
   async function planRouteReal(origin, pois, budgetMin, preferSet, avoidSet, enforcePreferred, maxPerCat, blockSeq, routeType, moveMode){
     const filtered = pois.filter(p => !avoidSet.has(p.category));
     const maxPois = Math.max(5, parseInt(document.getElementById('maxPois').value||'40',10));
@@ -555,39 +554,59 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
         .bindPopup(`<strong>${p.name}</strong><br/><small>${p.category}</small>`).addTo(poiLayer);
     });
   }
-  async function osrmRouteFootDraw(prev, next, bounds){
-    try{
-      const data = await osrmRouteFoot(prev,next);
-      const route = data.routes && data.routes[0];
-      if(route && route.geometry){
-        const coords = (route.geometry.coordinates||[]).map(([lon,lat])=>[lat,lon]);
-        if(coords.length){
-          L.polyline(coords,{weight:5,opacity:.9}).addTo(routeLayer);
-          coords.forEach(c=>bounds.push(c));
-        }
+
+  // 🔹 Sempre disegna una linea tra le tappe: OSRM se c'è, altrimenti dritta
+  async function osrmRouteFootDraw(prev, next, bounds, color) {
+    let coords = null;
+    try {
+      const data = await osrmRouteFoot(prev, next);
+      const route = data && data.routes && data.routes[0];
+      if (route && route.geometry && Array.isArray(route.geometry.coordinates) && route.geometry.coordinates.length > 1) {
+        coords = route.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
       }
-    }catch(_){}
+    } catch (_) { /* fallback */ }
+
+    if (!coords || !coords.length) {
+      coords = [
+        [prev.lat, prev.lon != null ? prev.lon : prev.lng],
+        [next.lat, next.lon]
+      ];
+    }
+
+    L.polyline(coords, { color: color || '#22d3ee', weight: 5, opacity: 0.95 })
+      .addTo(routeLayer)
+      .bringToFront();
+
+    coords.forEach(c => bounds.push(c));
   }
+
   async function renderRouteWithOSRM(origin, steps, routeType){
     routeLayer.clearLayers();
     if(!steps.length) return;
+
     const originForDraw = {lat: origin.lat, lon: (origin.lon!=null?origin.lon:origin.lng)};
-    let prev=originForDraw;
-    const bounds = [[origin.lat,(origin.lon!=null?origin.lon:origin.lng)]];
-    for(const s of steps){
-      await osrmRouteFootDraw(prev, s, bounds);
-      const color = COLORS[s.category] || '#22d3ee';
-      const badge = s.preferred ? `<span class="pill" style="border-color:${color};color:${color}">preferito</span>` : '';
-      L.marker([s.lat,s.lon]).bindPopup(
+    let prev = originForDraw;
+    const bounds = [[origin.lat, (origin.lon!=null?origin.lon:origin.lng)]];
+
+    for (const s of steps) {
+      const segColor = COLORS[s.category] || '#22d3ee';
+      await osrmRouteFootDraw(prev, s, bounds, segColor);
+
+      const badge = s.preferred ? `<span class="pill" style="border-color:${segColor};color:${segColor}">preferito</span>` : '';
+      L.marker([s.lat, s.lon]).bindPopup(
         `<strong>${s.name}</strong> ${badge}<br/><small>${s.category} • spost. ~${s.travelMin} min • sosta ~${s.dwellMin} min</small>`
       ).addTo(routeLayer);
-      prev=s;
+
+      prev = s;
     }
-    if(routeType==='loop' && steps.length){
-      await osrmRouteFootDraw(prev, originForDraw, bounds);
+
+    if (routeType === 'loop' && steps.length) {
+      await osrmRouteFootDraw(prev, originForDraw, bounds, '#5eead4');
     }
+
     map.fitBounds(bounds,{padding:[28,28]});
   }
+
   async function renderItinerary(steps, returnMin = 0, routeType = 'linear', originMode='auto'){
     const box = document.getElementById('itinerary');
     if (!steps || !steps.length) { box.innerHTML = `<div class="step">Nessuna tappa rientra nel tempo impostato.</div>`; return; }
@@ -638,7 +657,6 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
 
   function getStartMode(){ return modeManual.checked ? 'manual' : 'auto'; }
 
-  // FIX 3: getOriginForFlow usa sempre la manuale quando selezionata
   async function getOriginForFlow(){
     try{
       const usp=new URLSearchParams(location.search);
