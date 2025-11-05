@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>TourNow — v11+manual (partenza manuale + ricerca indirizzo)</title>
+  <title>TourNow — v11+manual (FIX: usa sempre la partenza manuale)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
   <style>
@@ -21,7 +21,7 @@
     .checkboxes{display:flex;flex-wrap:wrap;gap:8px}
     .chip{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:#101014;user-select:none}
     .chip input{accent-color:var(--accent)}
-    input[type="number"],input[type="text"],select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#101014;color:var(--text)}
+    input[type="number"],input[type="text"],select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#101014;color:#f1f5f9}
     button{width:100%;padding:12px 14px;border:none;border-radius:12px;background:linear-gradient(90deg,#06b6d4,#22d3ee);color:#001017;font-weight:700;cursor:pointer;margin-top:6px}
     button.ghost{background:#101014;color:#cfe9ef;border:1px solid var(--border)}
     button:disabled{opacity:.5;cursor:not-allowed}
@@ -36,9 +36,7 @@
     .pill{display:inline-block;font-size:11px;padding:2px 6px;border-radius:999px;border:1px solid var(--border);margin-left:6px}
     .hint{font-size:11px;color:#8aa1b6;margin-top:4px}
     .status{font-size:12px;color:#cfe9ef;background:#101014;border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-top:8px}
-    .status strong{color:var(--accent)}
-
-    /* Autocomplete */
+    .status strong{color:#22d3ee}
     .ac-wrap{position:relative}
     .ac-list{position:absolute;top:100%;left:0;right:0;background:#0f1219;border:1px solid var(--border);border-radius:10px;max-height:240px;overflow:auto;z-index:10}
     .ac-item{padding:10px 12px;border-bottom:1px dashed #1b2230;cursor:pointer}
@@ -53,12 +51,11 @@
 <body>
 <header>
   <h1>TourNow — tour operator istantaneo</h1>
-  <span class="badge">v11 + partenza manuale (ricerca + mappa) • compatibile con v11</span>
+  <span class="badge">v11 + partenza manuale (fix uso origine manuale)</span>
 </header>
 
 <div class="container">
   <aside class="panel">
-    <!-- MODALITÀ PARTENZA -->
     <div class="field">
       <span class="label">Modalità partenza</span>
       <div class="mode-row">
@@ -67,13 +64,11 @@
       </div>
     </div>
 
-    <!-- GEO STATUS + BUTTON -->
     <div class="field" id="geoWrap">
       <button id="btnGeo" class="ghost">📍 Abilita posizione</button>
       <div id="geoStatus" class="status">Stato posizione: <strong>ignoto</strong></div>
     </div>
 
-    <!-- MANUAL INPUTS -->
     <div id="manualWrap" style="display:none">
       <div class="field">
         <span class="label">Cerca un indirizzo o luogo</span>
@@ -184,16 +179,25 @@
 </div>
 
 <script>
-  /* ========= CONFIG / UTILS ========= */
   const OSRM_BASE='https://router.project-osrm.org';
   const BIKE_TIME_FACTOR=0.35, BIKE_DWELL_FACTOR=0.8, BIKE_RADIUS_BONUS_KM=2;
   const PREFERRED_BONUS_SECONDS=6*60;
   const COLORS={}, toRad=d=>d*Math.PI/180;
-  function haversineKm(a,b){const R=6371;const dLat=toRad(b.lat-a.lat);const dLon=toRad((b.lng||a.lon)-(a.lng||b.lon));const sa=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(Math.abs(dLon)/2)**2;return 2*R*Math.asin(Math.sqrt(sa));}
+
+  // FIX 1: haversine sicuro per .lng/.lon
+  function haversineKm(a,b){
+    const R=6371;
+    const la1=a.lat, la2=b.lat;
+    const lo1=(a.lng!=null?a.lng:a.lon);
+    const lo2=(b.lng!=null?b.lng:b.lon);
+    const dLat=toRad(la2-la1);
+    const dLon=toRad(lo2-lo1);
+    const s=Math.sin(dLat/2)**2 + Math.cos(toRad(la1))*Math.cos(toRad(la2))*Math.sin(dLon/2)**2;
+    return 2*R*Math.asin(Math.sqrt(s||0));
+  }
   function autoColor(i){const hues=[188,160,40,12,320,260,90,200,22,280,140,30];return `hsl(${hues[i%hues.length]} 90% 60%)`; }
   const $ = id => document.getElementById(id);
 
-  /* ========= CATEGORIES ========= */
   const CATEGORIES=[
     {id:"culture",label:"Musei/Gallerie",query:'["tourism"~"museum|gallery"]',dwell:40},
     {id:"historic",label:"Siti storici",query:'["historic"]',dwell:25},
@@ -221,7 +225,6 @@
     {id:"shopping",label:"Vie dello shopping",query:'["shop"]["name"]',dwell:20},
   ];
 
-  /* ========= UI dinamica ========= */
   const interestsWrap=$('interests');
   const preferWrap=$('preferBox');
   const avoidWrap=$('avoidBox');
@@ -252,7 +255,6 @@
   const getPreferIds = ()=> readChecks(preferWrap);
   const getAvoidIds = ()=> readChecks(avoidWrap);
 
-  /* ========= Categoria da OSM tags ========= */
   function detectCategory(tags){
     if(tags.tourism==="museum"||tags.tourism==="gallery")return"culture";
     if(tags.historic==="monument")return"monument";
@@ -281,7 +283,6 @@
     return"landmark";
   }
 
-  /* ========= Mappa & posizione ========= */
   const map = L.map('map', { zoomControl:true });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
   let userMarker=null, poiLayer=L.layerGroup().addTo(map), routeLayer=L.layerGroup().addTo(map);
@@ -331,7 +332,6 @@
 
   map.on('click', (e)=>{ if(modeManual.checked){ setOrigin(e.latlng.lat, e.latlng.lng, 'manual'); } });
 
-  /* ========= Nominatim autocomplete ========= */
   let acTimer=null;
   manualAddress?.addEventListener('input', ()=>{
     const q = manualAddress.value.trim();
@@ -352,7 +352,7 @@
         headers: {
           'Accept':'application/json',
           // ⚠️ Sostituisci con una tua email per rispettare la policy Nominatim
-          'User-Agent': 'TourNow/v11+manual (+contact: enricopomaro@gmail.com)'
+          'User-Agent': 'TourNow/v11+manual (+contact: your-email@example.com)'
         }
       });
       if(!res.ok) throw new Error('Geo API non disponibile');
@@ -381,7 +381,6 @@
     manualAddress.value = item.querySelector('div strong')?.textContent || manualAddress.value;
   });
 
-  /* ========= Overpass / OSRM and planner (copied from v11) ========= */
   function buildOverpassQuery(center, radiusM, selectedIds){
     const parts = selectedIds.map(id=>{
       const cat=CATEGORIES.find(c=>c.id===id);
@@ -435,7 +434,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
       const W_MPS = 1.3;
       const durations = coords.map(a => coords.map(b => {
         if(a===b) return 0;
-        const km = haversineKm({lat:a.lat,lng:a.lon},{lat:b.lat,lng:b.lon});
+        const km = haversineKm(a,b);
         return Math.round((km*1000)/W_MPS);
       }));
       return { durations };
@@ -465,6 +464,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
     return unique([...preferIds, ...others, ...restKnown]);
   }
 
+  // FIX 2: la matrice e la rotta partono dall'origine (manuale, se selezionata)
   async function planRouteReal(origin, pois, budgetMin, preferSet, avoidSet, enforcePreferred, maxPerCat, blockSeq, routeType, moveMode){
     const filtered = pois.filter(p => !avoidSet.has(p.category));
     const maxPois = Math.max(5, parseInt(document.getElementById('maxPois').value||'40',10));
@@ -474,7 +474,8 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
       return da-db;
     }).slice(0,maxPois);
 
-    const coords=[{lat:origin.lat, lon:origin.lng, name:'Partenza', category:'origin'}, ...sorted];
+    const originForMatrix = { lat: origin.lat, lon: (origin.lon!=null?origin.lon:origin.lng) };
+    const coords=[originForMatrix, ...sorted];
     const table = await osrmTableFoot(coords);
     const durations = table.durations.map(row => row.map(sec => (sec==null?null : (moveMode==='bike' ? Math.max(1, Math.round(sec*BIKE_TIME_FACTOR)) : sec))));
 
@@ -539,7 +540,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
     let returnMin = 0;
     if(routeType==='loop' && visit.length){
       const last = visit[visit.length-1];
-      const lastIdx = coords.findIndex(c => c.id === last.id);
+      const lastIdx = coords.indexOf(last);
       const backSec = durations[lastIdx][0];
       if(backSec!=null){ returnMin = Math.ceil(backSec/60); }
     }
@@ -547,7 +548,6 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
     return { steps: visit, timeUsedMin, returnMin, hasPreferred };
   }
 
-  /* ========= Rendering ========= */
   function renderPOIs(pois){
     poiLayer.clearLayers();
     pois.forEach(p=>{
@@ -571,8 +571,9 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
   async function renderRouteWithOSRM(origin, steps, routeType){
     routeLayer.clearLayers();
     if(!steps.length) return;
-    let prev={lat:origin.lat, lon:origin.lng};
-    const bounds = [[origin.lat,origin.lng]];
+    const originForDraw = {lat: origin.lat, lon: (origin.lon!=null?origin.lon:origin.lng)};
+    let prev=originForDraw;
+    const bounds = [[origin.lat,(origin.lon!=null?origin.lon:origin.lng)]];
     for(const s of steps){
       await osrmRouteFootDraw(prev, s, bounds);
       const color = COLORS[s.category] || '#22d3ee';
@@ -583,11 +584,11 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
       prev=s;
     }
     if(routeType==='loop' && steps.length){
-      await osrmRouteFootDraw(prev, {lat:origin.lat, lon:origin.lng}, bounds);
+      await osrmRouteFootDraw(prev, originForDraw, bounds);
     }
     map.fitBounds(bounds,{padding:[28,28]});
   }
-  async function renderItinerary(steps, returnMin = 0, routeType = 'linear'){
+  async function renderItinerary(steps, returnMin = 0, routeType = 'linear', originMode='auto'){
     const box = document.getElementById('itinerary');
     if (!steps || !steps.length) { box.innerHTML = `<div class="step">Nessuna tappa rientra nel tempo impostato.</div>`; return; }
     let t=0;
@@ -599,14 +600,15 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
         <div class="desc" style="margin-top:6px;color:#cbd5e1;font-size:13px;">Tappa consigliata.</div></div>`;
     }).join('');
     const tail = (routeType==='loop' && returnMin>0)? `<div class="step" style="opacity:.85;">Rientro al punto di partenza: ~${returnMin} min</div>` : '';
-    box.innerHTML = html + tail + `<div class="step" style="opacity:.85;"><strong>Tempo stimato totale</strong>: ~${t + (routeType==='loop'?returnMin:0)} min</div>`;
+    const originBadge = `<div class="step" style="opacity:.85;">Origine: <strong>${originMode==='manual'?'Manuale':'Geolocalizzata'}</strong></div>`;
+    box.innerHTML = originBadge + html + tail + `<div class="step" style="opacity:.85;"><strong>Tempo stimato totale</strong>: ~${t + (routeType==='loop'?returnMin:0)} min</div>`;
   }
 
-  /* ========= Google Maps launcher ========= */
   const MAX_WAYPOINTS = 8;
   function buildGoogleMapsURL(origin, steps, routeType, moveMode){
     if(!steps || !steps.length) return null;
-    const originStr = `${origin.lat},${origin.lng}`;
+    const originLon = (origin.lon!=null?origin.lon:origin.lng);
+    const originStr = `${origin.lat},${originLon}`;
     let destinationStr = `${steps[steps.length-1].lat},${steps[steps.length-1].lon}`;
     let waypoints = steps.slice(0, steps.length-1);
     if(routeType === 'loop'){ destinationStr = originStr; waypoints = steps.slice(0); }
@@ -619,7 +621,6 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
   }
   function openInGoogleMaps(url){ if(!url) return; window.open(url, '_blank', 'noopener,noreferrer'); }
 
-  /* ========= MAIN FLOW ========= */
   function getBlockSequenceUI(){
     const selected = getSelectedCategoryIds();
     const preferIds = getPreferIds();
@@ -637,17 +638,18 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
 
   function getStartMode(){ return modeManual.checked ? 'manual' : 'auto'; }
 
+  // FIX 3: getOriginForFlow usa sempre la manuale quando selezionata
   async function getOriginForFlow(){
     try{
       const usp=new URLSearchParams(location.search);
       if(usp.has('start')){
         const raw=usp.get('start'); const [la,lo]=raw.split(',').map(parseFloat);
-        if(isFinite(la)&&isFinite(lo)){ modeManual.checked=true; modeAuto.checked=false; manualWrap.style.display='block'; $('geoWrap').style.display='none'; setOrigin(la,lo,'manual'); return lastOrigin; }
+        if(isFinite(la)&&isFinite(lo)){ modeManual.checked=true; modeAuto.checked=false; manualWrap.style.display='block'; $('geoWrap').style.display='none'; setOrigin(la,lo,'manual'); return {lat:la,lng:lo}; }
       }
     }catch(_){}
     if(modeManual.checked){
-      try{ const saved = JSON.parse(localStorage.getItem('tn_manual_origin')||'null'); if(saved && isFinite(saved.lat)&&isFinite(saved.lng)){ setOrigin(saved.lat,saved.lng,'manual'); return saved; } }catch(_){}
       if(lastOrigin) return lastOrigin;
+      try{ const saved = JSON.parse(localStorage.getItem('tn_manual_origin')||'null'); if(saved && isFinite(saved.lat)&&isFinite(saved.lng)){ setOrigin(saved.lat,saved.lng,'manual'); return saved; } }catch(_){}
       alert('Modalità manuale: imposta la partenza (cerca indirizzo o clicca sulla mappa).');
       throw new Error('Partenza manuale non impostata.');
     }
@@ -664,6 +666,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
   }
 
   async function mainFlow(){
+    const startMode = getStartMode();
     const origin = await getOriginForFlow();
     const selected = getSelectedCategoryIds();
     if(!selected.length) { alert('Seleziona almeno una categoria.'); return; }
@@ -687,7 +690,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
 
     const plan = await planRouteReal(origin, filtered, timeBudget, preferSet, avoidSet, enforcePreferred, maxPerCat, blockSeq, routeType, moveMode);
     await renderRouteWithOSRM(origin, plan.steps, routeType);
-    await renderItinerary(plan.steps, plan.returnMin, routeType);
+    await renderItinerary(plan.steps, plan.returnMin, routeType, startMode);
 
     const gbtn = $('btnGMaps');
     const gurl = buildGoogleMapsURL(origin, plan.steps, routeType, moveMode);
