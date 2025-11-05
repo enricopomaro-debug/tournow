@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TourNow — v11+manual (partenza manuale + ricerca indirizzo)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
+  <style>
+    :root { --bg:#0b0b0c; --panel:#151518; --text:#f1f5f9; --muted:#94a3b8; --accent:#22d3ee; --border:#2b2b33; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Arial;background:var(--bg);color:var(--text)}
+    header{padding:14px 16px;border-bottom:1px solid #23232a;display:flex;gap:12px;align-items:center;justify-content:space-between}
+    header h1{font-size:18px;margin:0}
+    .badge{padding:4px 8px;border:1px solid var(--border);border-radius:999px;font-size:12px;color:var(--muted)}
+    .container{display:grid;grid-template-columns:460px 1fr;min-height:calc(100vh - 56px)}
+    @media (max-width:900px){.container{grid-template-columns:1fr}}
+    .panel{padding:16px;background:#151518;border-right:1px solid #23232a}
+    .row{display:flex;gap:8px}.row>*{flex:1}
+    .field{margin-bottom:12px}.label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    .checkboxes{display:flex;flex-wrap:wrap;gap:8px}
+    .chip{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:#101014;user-select:none}
+    .chip input{accent-color:var(--accent)}
+    input[type="number"],input[type="text"],select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#101014;color:var(--text)}
+    button{width:100%;padding:12px 14px;border:none;border-radius:12px;background:linear-gradient(90deg,#06b6d4,#22d3ee);color:#001017;font-weight:700;cursor:pointer;margin-top:6px}
+    button.ghost{background:#101014;color:#cfe9ef;border:1px solid var(--border)}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    #map{width:100%;height:calc(100vh - 56px)}
+    .itinerary{margin-top:14px;border-top:1px solid #23232a;padding-top:12px}
+    .step{padding:10px 12px;background:#101014;border:1px solid var(--border);border-radius:10px;margin-bottom:8px}
+    .legend{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .legend .tag{font-size:11px;padding:4px 8px;background:#101014;border:1px solid var(--border);border-radius:999px;color:#cbd5e1}
+    .ai-note{font-size:12px;color:#9ad2df;margin:6px 0 0}
+    .title{font-weight:800;margin:4px 0 6px}
+    .summary{font-size:13px;color:#cfe9ef;margin:0 0 8px}
+    .pill{display:inline-block;font-size:11px;padding:2px 6px;border-radius:999px;border:1px solid var(--border);margin-left:6px}
+    .hint{font-size:11px;color:#8aa1b6;margin-top:4px}
+    .status{font-size:12px;color:#cfe9ef;background:#101014;border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-top:8px}
+    .status strong{color:var(--accent)}
+
+    /* Autocomplete */
+    .ac-wrap{position:relative}
+    .ac-list{position:absolute;top:100%;left:0;right:0;background:#0f1219;border:1px solid var(--border);border-radius:10px;max-height:240px;overflow:auto;z-index:10}
+    .ac-item{padding:10px 12px;border-bottom:1px dashed #1b2230;cursor:pointer}
+    .ac-item:last-child{border-bottom:none}
+    .ac-item:hover{background:#101826}
+    .mode-row{display:flex;gap:8px;align-items:center}
+    .radio{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:#101014;cursor:pointer;user-select:none}
+    .radio input{accent-color:#10b981}
+    .coords-pill{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:999px;color:#cbd5e1;font-size:12px}
+  </style>
+</head>
+<body>
+<header>
+  <h1>TourNow — tour operator istantaneo</h1>
+  <span class="badge">v11 + partenza manuale (ricerca + mappa) • compatibile con v11</span>
+</header>
+
+<div class="container">
+  <aside class="panel">
+    <!-- MODALITÀ PARTENZA -->
+    <div class="field">
+      <span class="label">Modalità partenza</span>
+      <div class="mode-row">
+        <label class="radio"><input type="radio" name="startMode" id="modeAuto" value="auto" checked/> Automatica (usa la mia posizione)</label>
+        <label class="radio"><input type="radio" name="startMode" id="modeManual" value="manual"/> Manuale (imposta tu)</label>
+      </div>
+    </div>
+
+    <!-- GEO STATUS + BUTTON -->
+    <div class="field" id="geoWrap">
+      <button id="btnGeo" class="ghost">📍 Abilita posizione</button>
+      <div id="geoStatus" class="status">Stato posizione: <strong>ignoto</strong></div>
+    </div>
+
+    <!-- MANUAL INPUTS -->
+    <div id="manualWrap" style="display:none">
+      <div class="field">
+        <span class="label">Cerca un indirizzo o luogo</span>
+        <div class="ac-wrap">
+          <input id="manualAddress" type="text" placeholder="Es. Piazza San Marco, Venezia" autocomplete="off"/>
+          <div id="acList" class="ac-list" style="display:none"></div>
+        </div>
+        <div class="hint">Oppure clicca sulla mappa per impostare il punto di partenza.</div>
+      </div>
+      <div class="field">
+        <span class="label">Coordinate scelte</span>
+        <div class="coords-pill" id="coordsPill">—</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <span class="label">Tempo disponibile (min)</span>
+        <input id="timeBudget" type="number" min="15" step="15" value="90"/>
+      </div>
+      <div class="field">
+        <span class="label">Percorso</span>
+        <select id="routeType">
+          <option value="linear">Lineare</option>
+          <option value="loop">Ad anello</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <span class="label">Modalità di spostamento</span>
+        <select id="moveMode">
+          <option value="foot">A piedi</option>
+          <option value="bike">Bici</option>
+        </select>
+        <div class="ai-note">In bici: tempi 0.35×, soste −20%, raggio +2 km.</div>
+        <div class="hint" id="radiusHint"></div>
+      </div>
+      <div class="field">
+        <span class="label">Raggio ricerca (km)</span>
+        <input id="radiusKm" type="number" min="0.5" step="0.5" value="2.5"/>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="label">Categorie da includere</span>
+      <div class="checkboxes" id="interests"></div>
+    </div>
+
+    <div class="row">
+      <div class="field"><span class="label">Preferisci</span><div class="checkboxes" id="preferBox"></div></div>
+      <div class="field"><span class="label">Evita</span><div class="checkboxes" id="avoidBox"></div></div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <span class="label">Schema blocchi</span>
+        <select id="blockPreset">
+          <option value="auto">Auto</option>
+          <option value="culture,food,park">Cultura → Cibo → Parco</option>
+          <option value="park,food,landmark">Parco → Cibo → Landmark</option>
+          <option value="food,landmark,park">Cibo → Landmark → Parco</option>
+          <option value="custom">Personalizzato</option>
+        </select>
+      </div>
+      <div class="field">
+        <span class="label">Blocchi personalizzati (CSV)</span>
+        <input id="blockCustom" type="text" placeholder="es: culture,food,park"/>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <span class="label">Max POI considerati</span>
+        <input id="maxPois" type="number" min="5" step="5" value="40"/>
+      </div>
+      <div class="field">
+        <span class="label">Max tappe per categoria</span>
+        <input id="maxPerCat" type="number" min="1" step="1" value="3"/>
+      </div>
+    </div>
+
+    <div class="field">
+      <input id="enforcePreferred" type="checkbox" checked/>
+      <label for="enforcePreferred">Obbliga ≥1 preferita (se possibile)</label>
+    </div>
+
+    <button id="btnFind">Trova POI & Genera itinerario</button>
+    <button id="btnGMaps" style="margin-top:8px;background:linear-gradient(90deg,#22d3ee,#06b6d4)" disabled>
+      Apri itinerario in Google Maps
+    </button>
+
+    <div class="itinerary">
+      <div class="title" id="aiTitle"></div>
+      <p class="summary" id="aiSummary"></p>
+      <div id="itinerary"></div>
+      <div class="legend" id="legend"></div>
+      <p class="ai-note" id="aiStatus"></p>
+    </div>
+
+    <div class="hint">
+      Tip: in modalità manuale puoi <strong>cercare un indirizzo</strong> o <strong>cliccare sulla mappa</strong> per impostare il punto di partenza.
+      <br> Dati: © OpenStreetMap — Overpass API • Routing: OSRM profilo “foot”.
+    </div>
+  </aside>
+  <main id="map"></main>
+</div>
+
+<script>
+  /* ========= CONFIG / UTILS ========= */
+  const OSRM_BASE='https://router.project-osrm.org';
+  const BIKE_TIME_FACTOR=0.35, BIKE_DWELL_FACTOR=0.8, BIKE_RADIUS_BONUS_KM=2;
+  const PREFERRED_BONUS_SECONDS=6*60;
+  const COLORS={}, toRad=d=>d*Math.PI/180;
+  function haversineKm(a,b){const R=6371;const dLat=toRad(b.lat-a.lat);const dLon=toRad((b.lng||a.lon)-(a.lng||b.lon));const sa=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(Math.abs(dLon)/2)**2;return 2*R*Math.asin(Math.sqrt(sa));}
+  function autoColor(i){const hues=[188,160,40,12,320,260,90,200,22,280,140,30];return `hsl(${hues[i%hues.length]} 90% 60%)`; }
+  const $ = id => document.getElementById(id);
+
+  /* ========= CATEGORIES ========= */
+  const CATEGORIES=[
+    {id:"culture",label:"Musei/Gallerie",query:'["tourism"~"museum|gallery"]',dwell:40},
+    {id:"historic",label:"Siti storici",query:'["historic"]',dwell:25},
+    {id:"monument",label:"Monumenti/Statue",query:'["historic"="monument"]',dwell:15},
+    {id:"castle",label:"Castelli/Forti",query:'["historic"~"castle|fort"]',dwell:35},
+    {id:"church",label:"Luoghi di culto",query:'["amenity"="place_of_worship"]',dwell:20},
+    {id:"theatre",label:"Teatri/Opera",query:'["amenity"~"theatre|arts_centre"]',dwell:25},
+    {id:"landmark",label:"Landmark",query:'["tourism"="attraction"]',dwell:20},
+    {id:"viewpoint",label:"Punti panoramici",query:'["tourism"="viewpoint"]',dwell:15},
+    {id:"bridge",label:"Ponti scenici",query:'["man_made"="bridge"]',dwell:10},
+    {id:"tower",label:"Torri/Belvedere",query:'["man_made"="tower"]',dwell:15},
+    {id:"square",label:"Piazze",query:'["place"="square"]',dwell:15},
+    {id:"fountain",label:"Fontane",query:'["amenity"="fountain"]',dwell:10},
+    {id:"park",label:"Parchi/Giardini",query:'["leisure"~"park|garden|common"]',dwell:30},
+    {id:"water",label:"Laghetti/Sponde",query:'["natural"~"water|bay"]',dwell:20},
+    {id:"beach",label:"Spiagge/Lidi",query:'["natural"="beach"]',dwell:30},
+    {id:"food",label:"Ristoranti/Bar",query:'["amenity"~"restaurant|cafe|fast_food|bar"]',dwell:25},
+    {id:"gelato",label:"Gelaterie",query:'["amenity"="ice_cream"]',dwell:15},
+    {id:"bakery",label:"Panifici/Pasticcerie",query:'["shop"~"bakery|pastry"]',dwell:15},
+    {id:"coffee",label:"Caffè specialty",query:'["amenity"="cafe"]["coffee"!=""]',dwell:20},
+    {id:"wine",label:"Enoteche/Wine bar",query:'["amenity"~"bar|pub"]["wine"!=""]',dwell:20},
+    {id:"market",label:"Mercati locali",query:'["amenity"~"marketplace|market"]',dwell:20},
+    {id:"streetart",label:"Street Art/Murales",query:'["tourism"="artwork"]["artwork_type"~"mural|graffiti|street_art"]',dwell:15},
+    {id:"exhibit",label:"Mostre/Esposizioni",query:'["exhibition"="permanent"]',dwell:25},
+    {id:"shopping",label:"Vie dello shopping",query:'["shop"]["name"]',dwell:20},
+  ];
+
+  /* ========= UI dinamica ========= */
+  const interestsWrap=$('interests');
+  const preferWrap=$('preferBox');
+  const avoidWrap=$('avoidBox');
+  const legendWrap=$('legend');
+  const radiusHint=$('radiusHint');
+  const geoStatus=$('geoStatus');
+  const btnGeo=$('btnGeo');
+  const modeAuto=$('modeAuto');
+  const modeManual=$('modeManual');
+  const manualWrap=$('manualWrap');
+  const manualAddress=$('manualAddress');
+  const acList=$('acList');
+  const coordsPill=$('coordsPill');
+
+  CATEGORIES.forEach((c,i)=>{
+    COLORS[c.id]=autoColor(i);
+    const addChip=(wrap,checked=false)=>{
+      const l=document.createElement('label');l.className='chip';
+      l.innerHTML=`<input type="checkbox" value="${c.id}" ${checked?'checked':''}/> ${c.label}`;
+      wrap.appendChild(l);
+    };
+    addChip(interestsWrap, i<5); addChip(preferWrap); addChip(avoidWrap);
+    const tag=document.createElement('span');tag.className='tag';tag.style.borderColor=COLORS[c.id];tag.style.color=COLORS[c.id];tag.textContent=c.label;legendWrap.appendChild(tag);
+  });
+
+  const readChecks = wrap => [...wrap.querySelectorAll('input[type=checkbox]')].filter(x=>x.checked).map(x=>x.value);
+  const getSelectedCategoryIds = ()=> readChecks(interestsWrap);
+  const getPreferIds = ()=> readChecks(preferWrap);
+  const getAvoidIds = ()=> readChecks(avoidWrap);
+
+  /* ========= Categoria da OSM tags ========= */
+  function detectCategory(tags){
+    if(tags.tourism==="museum"||tags.tourism==="gallery")return"culture";
+    if(tags.historic==="monument")return"monument";
+    if(tags.historic&&/castle|fort/.test(tags.historic))return"castle";
+    if(tags.historic)return"historic";
+    if(tags.amenity==="place_of_worship")return"church";
+    if(tags.amenity&&/theatre|arts_centre/.test(tags.amenity))return"theatre";
+    if(tags.tourism==="viewpoint")return"viewpoint";
+    if(tags.man_made==="bridge")return"bridge";
+    if(tags.man_made==="tower")return"tower";
+    if(tags.place==="square")return"square";
+    if(tags.amenity==="fountain")return"fountain";
+    if(tags.tourism==="attraction")return"landmark";
+    if(tags.leisure&&/park|garden|common/.test(tags.leisure))return"park";
+    if(tags.natural==="beach")return"beach";
+    if(tags.natural&&/water|bay/.test(tags.natural))return"water";
+    if(tags.amenity&&/restaurant|cafe|fast_food|bar/.test(tags.amenity))return"food";
+    if(tags.amenity==="ice_cream")return"gelato";
+    if(tags.shop&&/bakery|pastry/.test(tags.shop))return"bakery";
+    if(tags.amenity==="cafe"&&tags.coffee)return"coffee";
+    if((tags.amenity==="bar"||tags.amenity==="pub")&&tags.wine)return"wine";
+    if(tags.amenity&&/marketplace|market/.test(tags.amenity))return"market";
+    if(tags.tourism==="artwork"&&/mural|graffiti|street_art/.test((tags.artwork_type||"")))return"streetart";
+    if(tags.exhibition==="permanent")return"exhibit";
+    if(tags.shop&&tags.name)return"shopping";
+    return"landmark";
+  }
+
+  /* ========= Mappa & posizione ========= */
+  const map = L.map('map', { zoomControl:true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
+  let userMarker=null, poiLayer=L.layerGroup().addTo(map), routeLayer=L.layerGroup().addTo(map);
+  let lastOrigin=null;
+
+  function setStatus(text){ geoStatus.innerHTML = 'Stato posizione: <strong>'+text+'</strong>'; }
+
+  async function checkPermission(){
+    if(!('permissions' in navigator)) return null;
+    try{
+      const s = await navigator.permissions.query({name:'geolocation'});
+      setStatus(s.state);
+      s.onchange = ()=> setStatus(s.state);
+      return s.state;
+    }catch(_){ return null; }
+  }
+
+  function setOrigin(lat,lng,from='manual'){
+    lastOrigin={lat,lng}; map.setView([lat,lng], 15);
+    if(userMarker) map.removeLayer(userMarker);
+    userMarker = L.marker([lat,lng], {title:'Partenza'}).addTo(map).bindPopup(from==='geo'?'Tu sei qui':'Partenza impostata a mano');
+    if(modeManual.checked){
+      try{ localStorage.setItem('tn_manual_origin', JSON.stringify(lastOrigin)); }catch(_){}
+      coordsPill.textContent = `Lat ${lat.toFixed(5)}, Lng ${lng.toFixed(5)}`;
+    }
+  }
+
+  async function requestGeolocation(){
+    setStatus('richiesta…');
+    return new Promise((resolve)=>{
+      if(!('geolocation' in navigator)){
+        setStatus('non supportata dal browser');
+        resolve({ok:false});
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(pos=>{
+        const {latitude,longitude} = pos.coords;
+        setStatus('concessa');
+        setOrigin(latitude, longitude, 'geo');
+        resolve({ok:true,lat:latitude,lng:longitude});
+      }, err=>{
+        setStatus('negata o errore ('+err.code+')');
+        resolve({ok:false});
+      }, {enableHighAccuracy:true, timeout:10000, maximumAge:0});
+    });
+  }
+
+  map.on('click', (e)=>{ if(modeManual.checked){ setOrigin(e.latlng.lat, e.latlng.lng, 'manual'); } });
+
+  /* ========= Nominatim autocomplete ========= */
+  let acTimer=null;
+  manualAddress?.addEventListener('input', ()=>{
+    const q = manualAddress.value.trim();
+    if(acTimer) clearTimeout(acTimer);
+    if(!q){ acList.style.display='none'; acList.innerHTML=''; return; }
+    acTimer = setTimeout(()=>searchNominatim(q), 250);
+  });
+
+  async function searchNominatim(q){
+    try{
+      const url = new URL('https://nominatim.openstreetmap.org/search');
+      url.searchParams.set('q', q);
+      url.searchParams.set('format', 'json');
+      url.searchParams.set('addressdetails', '1');
+      url.searchParams.set('limit', '8');
+      url.searchParams.set('countrycodes', 'it');
+      const res = await fetch(url.toString(), {
+        headers: {
+          'Accept':'application/json',
+          // ⚠️ Sostituisci con una tua email per rispettare la policy Nominatim
+          'User-Agent': 'TourNow/v11+manual (+contact: your-email@example.com)'
+        }
+      });
+      if(!res.ok) throw new Error('Geo API non disponibile');
+      const data = await res.json();
+      renderAC(data);
+    }catch(err){
+      acList.innerHTML = `<div class="ac-item">Errore ricerca: ${err.message}</div>`;
+      acList.style.display = 'block';
+    }
+  }
+  function escapeHTML(s){ return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]||c)); }
+  function renderAC(results){
+    if(!results || !results.length){ acList.innerHTML = '<div class="ac-item">Nessun risultato</div>'; acList.style.display='block'; return; }
+    acList.innerHTML = results.map(r=>`<div class="ac-item" data-lat="${r.lat}" data-lon="${r.lon}">
+      <div><strong>${escapeHTML(r.display_name.split(',')[0]||'Luogo')}</strong></div>
+      <div style="font-size:12px;color:#a9bfd4">${escapeHTML(r.display_name)}</div>
+    </div>`).join('');
+    acList.style.display='block';
+  }
+  acList?.addEventListener('click', (e)=>{
+    const item = e.target.closest('.ac-item'); if(!item) return;
+    const lat = parseFloat(item.dataset.lat), lon = parseFloat(item.dataset.lon);
+    modeManual.checked = true; modeAuto.checked = false; manualWrap.style.display = 'block'; $('geoWrap').style.display = 'none';
+    setOrigin(lat, lon, 'manual');
+    acList.style.display='none'; acList.innerHTML='';
+    manualAddress.value = item.querySelector('div strong')?.textContent || manualAddress.value;
+  });
+
+  /* ========= Overpass / OSRM and planner (copied from v11) ========= */
+  function buildOverpassQuery(center, radiusM, selectedIds){
+    const parts = selectedIds.map(id=>{
+      const cat=CATEGORIES.find(c=>c.id===id);
+      return `
+node${cat.query}(around:${radiusM},${center.lat},${center.lng});
+way${cat.query}(around:${radiusM},${center.lat},${center.lng});
+relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
+    }).join('\n');
+    return `[out:json][timeout:25];(${parts});out center 60;`;
+  }
+  async function fetchPOIs(center, selectedIds, radiusM){
+    const q = buildOverpassQuery(center, radiusM, selectedIds);
+    const endpoints=[
+      'https://overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter'
+    ];
+    for(const ep of endpoints){
+      try{
+        const resp = await fetch(ep, {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({data:q})});
+        if(!resp.ok) throw new Error('http_'+resp.status);
+        const js = await resp.json();
+        const items = (js.elements||[]) .map(e=>{
+          const lat = e.lat || (e.center && e.center.lat);
+          const lon = e.lon || (e.center && e.center.lon);
+          if(lat==null || lon==null) return null;
+          const tags = e.tags||{};
+          const name = tags.name || tags['name:it'] || tags['name:en'] || 'Punto d’interesse';
+          return { id:`${e.type}/${e.id}`, name, lat, lon, tags, category:detectCategory(tags) }
+        }).filter(Boolean);
+        const dedup = Object.values(items.reduce((acc,n)=>{acc[n.id]=n;return acc;}, {}));
+        if(dedup.length) return dedup;
+      }catch(_){}
+    }
+    const synth = Array.from({length:6}).map((_,i)=>{
+      const ang = (i/6)*2*Math.PI;
+      const dKm = Math.min( radiusM/1000, 1.2 );
+      const lat = center.lat + (dKm/111)*Math.cos(ang);
+      const lon = center.lng + (dKm/(111*Math.cos(center.lat*Math.PI/180)))*Math.sin(ang);
+      return { id:'synth'+i, name:'Punto interessante '+(i+1), lat, lon, tags:{}, category:(selectedIds[0]||'landmark') };
+    });
+    return synth;
+  }
+
+  async function osrmTableFoot(coords){
+    const coordStr = coords.map(c=>`${c.lon},${c.lat}`).join(';');
+    const url = `${OSRM_BASE}/table/v1/foot/${coordStr}?annotations=duration`;
+    try{
+      const r = await fetch(url); if(!r.ok) throw new Error('osrm_'+r.status);
+      return await r.json();
+    }catch(_){
+      const W_MPS = 1.3;
+      const durations = coords.map(a => coords.map(b => {
+        if(a===b) return 0;
+        const km = haversineKm({lat:a.lat,lng:a.lon},{lat:b.lat,lng:b.lon});
+        return Math.round((km*1000)/W_MPS);
+      }));
+      return { durations };
+    }
+  }
+  async function osrmRouteFoot(a,b){
+    const url = `${OSRM_BASE}/route/v1/foot/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson&steps=false`;
+    try{
+      const r = await fetch(url); if(!r.ok) throw new Error('osrm_'+r.status);
+      return await r.json();
+    }catch(_){
+      return { routes:[{ geometry:{ type:'LineString', coordinates:[[a.lon,a.lat],[b.lon,b.lat]] } }] };
+    }
+  }
+
+  function dwellFor(cat){ const c=CATEGORIES.find(x=>x.id===cat); return c?c.dwell:20; }
+  function getBlockSequence(selectedIds, preferIds){
+    const preset = document.getElementById('blockPreset').value;
+    if(preset === 'custom'){
+      const raw = (document.getElementById('blockCustom').value||'').split(',').map(s=>s.trim()).filter(Boolean);
+      return raw.length ? raw : selectedIds;
+    }
+    if(preset !== 'auto'){ return preset.split(','); }
+    const unique = arr => [...new Set(arr)];
+    const others = selectedIds.filter(c=>!preferIds.includes(c));
+    const restKnown = CATEGORIES.map(c=>c.id).filter(c=>!selectedIds.includes(c));
+    return unique([...preferIds, ...others, ...restKnown]);
+  }
+
+  async function planRouteReal(origin, pois, budgetMin, preferSet, avoidSet, enforcePreferred, maxPerCat, blockSeq, routeType, moveMode){
+    const filtered = pois.filter(p => !avoidSet.has(p.category));
+    const maxPois = Math.max(5, parseInt(document.getElementById('maxPois').value||'40',10));
+    const sorted = [...filtered].sort((a,b)=>{
+      const da=haversineKm(origin,{lat:a.lat,lng:a.lon});
+      const db=haversineKm(origin,{lat:b.lat,lng:b.lon});
+      return da-db;
+    }).slice(0,maxPois);
+
+    const coords=[{lat:origin.lat, lon:origin.lng, name:'Partenza', category:'origin'}, ...sorted];
+    const table = await osrmTableFoot(coords);
+    const durations = table.durations.map(row => row.map(sec => (sec==null?null : (moveMode==='bike' ? Math.max(1, Math.round(sec*BIKE_TIME_FACTOR)) : sec))));
+
+    const visit = [];
+    const N = coords.length;
+    const unvisited = new Set([...Array(N).keys()].slice(1));
+    let current=0, timeUsedMin=0;
+    const perCatCount = {};
+    let hasPreferred=false;
+    let blockIdx=0;
+    const blockLen = Math.max(1, blockSeq.length);
+
+    function wouldFit(idx, considerReturn){
+      const sec = durations[current][idx]; if(sec==null) return null;
+      const cand = coords[idx];
+      const baseDwell = dwellFor(cand.category);
+      const adjDwell = moveMode==='bike' ? Math.ceil(baseDwell * BIKE_DWELL_FACTOR) : baseDwell;
+      const travelMin = Math.ceil(sec/60);
+      const dwellMin  = adjDwell;
+      let retMin = 0;
+      if(considerReturn && routeType==='loop'){
+        const backSec = durations[idx][0]; if(backSec==null) return null;
+        retMin = Math.ceil(backSec/60);
+      }
+      const total = timeUsedMin + travelMin + dwellMin + retMin;
+      return total <= budgetMin ? {sec, travelMin, dwellMin, retMin} : null;
+    }
+
+    while(unvisited.size){
+      let candidates = [...unvisited].filter(i => (perCatCount[coords[i].category]||0) < maxPerCat);
+      if(enforcePreferred && !hasPreferred){
+        const feasPref = candidates.filter(i=>preferSet.has(coords[i].category) && wouldFit(i,true));
+        if(feasPref.length) candidates = feasPref;
+      }
+      const desired = blockSeq[blockIdx % blockLen];
+      let bestIdx=-1, bestScore=Infinity, bestFit=null;
+      const trySelect = (subset, priority=false) => {
+        for(const i of subset){
+          const c = coords[i];
+          const fit = wouldFit(i,true); if(!fit) continue;
+          const preferBonus = preferSet.has(c.category) ? -PREFERRED_BONUS_SECONDS : 0;
+          const blockBonus  = priority ? -120 : 0;
+          const score = Math.max(1, fit.sec + preferBonus - blockBonus);
+          if(score < bestScore){ bestScore=score; bestIdx=i; bestFit=fit; }
+        }
+      };
+      const blockCandidates = candidates.filter(i => coords[i].category === desired);
+      trySelect(blockCandidates, true);
+      if(bestIdx<0) trySelect(candidates, false);
+      if(bestIdx<0) break;
+
+      const poi = coords[bestIdx];
+      visit.push({ ...poi, travelMin: bestFit.travelMin, dwellMin: bestFit.dwellMin, preferred: preferSet.has(poi.category) });
+      timeUsedMin += bestFit.travelMin + bestFit.dwellMin;
+      perCatCount[poi.category] = (perCatCount[poi.category]||0) + 1;
+      hasPreferred = hasPreferred || preferSet.has(poi.category);
+      unvisited.delete(bestIdx);
+      current = bestIdx;
+      blockIdx = (blockIdx + 1) % blockLen;
+    }
+
+    let returnMin = 0;
+    if(routeType==='loop' && visit.length){
+      const last = visit[visit.length-1];
+      const lastIdx = coords.findIndex(c => c.id === last.id);
+      const backSec = durations[lastIdx][0];
+      if(backSec!=null){ returnMin = Math.ceil(backSec/60); }
+    }
+
+    return { steps: visit, timeUsedMin, returnMin, hasPreferred };
+  }
+
+  /* ========= Rendering ========= */
+  function renderPOIs(pois){
+    poiLayer.clearLayers();
+    pois.forEach(p=>{
+      L.circleMarker([p.lat,p.lon],{radius:6,weight:2,color:COLORS[p.category]||'#22d3ee',fillOpacity:.25})
+        .bindPopup(`<strong>${p.name}</strong><br/><small>${p.category}</small>`).addTo(poiLayer);
+    });
+  }
+  async function osrmRouteFootDraw(prev, next, bounds){
+    try{
+      const data = await osrmRouteFoot(prev,next);
+      const route = data.routes && data.routes[0];
+      if(route && route.geometry){
+        const coords = (route.geometry.coordinates||[]).map(([lon,lat])=>[lat,lon]);
+        if(coords.length){
+          L.polyline(coords,{weight:5,opacity:.9}).addTo(routeLayer);
+          coords.forEach(c=>bounds.push(c));
+        }
+      }
+    }catch(_){}
+  }
+  async function renderRouteWithOSRM(origin, steps, routeType){
+    routeLayer.clearLayers();
+    if(!steps.length) return;
+    let prev={lat:origin.lat, lon:origin.lng};
+    const bounds = [[origin.lat,origin.lng]];
+    for(const s of steps){
+      await osrmRouteFootDraw(prev, s, bounds);
+      const color = COLORS[s.category] || '#22d3ee';
+      const badge = s.preferred ? `<span class="pill" style="border-color:${color};color:${color}">preferito</span>` : '';
+      L.marker([s.lat,s.lon]).bindPopup(
+        `<strong>${s.name}</strong> ${badge}<br/><small>${s.category} • spost. ~${s.travelMin} min • sosta ~${s.dwellMin} min</small>`
+      ).addTo(routeLayer);
+      prev=s;
+    }
+    if(routeType==='loop' && steps.length){
+      await osrmRouteFootDraw(prev, {lat:origin.lat, lon:origin.lng}, bounds);
+    }
+    map.fitBounds(bounds,{padding:[28,28]});
+  }
+  async function renderItinerary(steps, returnMin = 0, routeType = 'linear'){
+    const box = document.getElementById('itinerary');
+    if (!steps || !steps.length) { box.innerHTML = `<div class="step">Nessuna tappa rientra nel tempo impostato.</div>`; return; }
+    let t=0;
+    const html = steps.map((s,i)=>{ t += (s.travelMin||0)+(s.dwellMin||0);
+      const color = COLORS[s.category]||'#22d3ee'; const badge = s.preferred?`<span class="pill" style="border-color:${color};color:${color}">preferito</span>`:'';
+      return `<div class="step"><div><strong>${i+1}. ${s.name}</strong> ${badge}
+        <span class="pill" style="border-color:${color};color:${color}">${s.category}</span></div>
+        <div><small>→ spostamento ~${s.travelMin??'?'} min, sosta ~${s.dwellMin??'?'} min</small></div>
+        <div class="desc" style="margin-top:6px;color:#cbd5e1;font-size:13px;">Tappa consigliata.</div></div>`;
+    }).join('');
+    const tail = (routeType==='loop' && returnMin>0)? `<div class="step" style="opacity:.85;">Rientro al punto di partenza: ~${returnMin} min</div>` : '';
+    box.innerHTML = html + tail + `<div class="step" style="opacity:.85;"><strong>Tempo stimato totale</strong>: ~${t + (routeType==='loop'?returnMin:0)} min</div>`;
+  }
+
+  /* ========= Google Maps launcher ========= */
+  const MAX_WAYPOINTS = 8;
+  function buildGoogleMapsURL(origin, steps, routeType, moveMode){
+    if(!steps || !steps.length) return null;
+    const originStr = `${origin.lat},${origin.lng}`;
+    let destinationStr = `${steps[steps.length-1].lat},${steps[steps.length-1].lon}`;
+    let waypoints = steps.slice(0, steps.length-1);
+    if(routeType === 'loop'){ destinationStr = originStr; waypoints = steps.slice(0); }
+    let wp = waypoints.map(s => `${s.lat},${s.lon}`);
+    if(wp.length > MAX_WAYPOINTS) wp = wp.slice(0, MAX_WAYPOINTS);
+    const travelmode = (moveMode === 'bike') ? 'bicycling' : 'walking';
+    const params = new URLSearchParams({ api:'1', origin:originStr, destination:destinationStr, travelmode, hl:'it' });
+    if(wp.length){ params.set('waypoints', wp.join('|')); }
+    return `https://www.google.com/maps/dir/?${params.toString()}`;
+  }
+  function openInGoogleMaps(url){ if(!url) return; window.open(url, '_blank', 'noopener,noreferrer'); }
+
+  /* ========= MAIN FLOW ========= */
+  function getBlockSequenceUI(){
+    const selected = getSelectedCategoryIds();
+    const preferIds = getPreferIds();
+    const preset = document.getElementById('blockPreset').value;
+    if(preset === 'custom'){
+      const raw = (document.getElementById('blockCustom').value||'').split(',').map(s=>s.trim()).filter(Boolean);
+      return raw.length ? raw : selected;
+    }
+    if(preset !== 'auto'){ return preset.split(','); }
+    const unique = arr => [...new Set(arr)];
+    const others = selected.filter(c=>!preferIds.includes(c));
+    const restKnown = CATEGORIES.map(c=>c.id).filter(c=>!selected.includes(c));
+    return unique([...preferIds, ...others, ...restKnown]);
+  }
+
+  function getStartMode(){ return modeManual.checked ? 'manual' : 'auto'; }
+
+  async function getOriginForFlow(){
+    try{
+      const usp=new URLSearchParams(location.search);
+      if(usp.has('start')){
+        const raw=usp.get('start'); const [la,lo]=raw.split(',').map(parseFloat);
+        if(isFinite(la)&&isFinite(lo)){ modeManual.checked=true; modeAuto.checked=false; manualWrap.style.display='block'; $('geoWrap').style.display='none'; setOrigin(la,lo,'manual'); return lastOrigin; }
+      }
+    }catch(_){}
+    if(modeManual.checked){
+      try{ const saved = JSON.parse(localStorage.getItem('tn_manual_origin')||'null'); if(saved && isFinite(saved.lat)&&isFinite(saved.lng)){ setOrigin(saved.lat,saved.lng,'manual'); return saved; } }catch(_){}
+      if(lastOrigin) return lastOrigin;
+      alert('Modalità manuale: imposta la partenza (cerca indirizzo o clicca sulla mappa).');
+      throw new Error('Partenza manuale non impostata.');
+    }
+    const perm = await checkPermission();
+    if(perm==='denied'){
+      modeManual.checked=true; modeAuto.checked=false; manualWrap.style.display='block'; $('geoWrap').style.display='none';
+      alert('Permesso posizione negato: passa a modalità manuale (cerca o clicca sulla mappa).');
+      throw new Error('Posizione negata.');
+    }
+    const res = await requestGeolocation();
+    if(res.ok) return {lat:res.lat, lng:res.lng};
+    modeManual.checked=true; modeAuto.checked=false; manualWrap.style.display='block'; $('geoWrap').style.display='none';
+    throw new Error('Impossibile ottenere la posizione. Imposta manualmente.');
+  }
+
+  async function mainFlow(){
+    const origin = await getOriginForFlow();
+    const selected = getSelectedCategoryIds();
+    if(!selected.length) { alert('Seleziona almeno una categoria.'); return; }
+
+    const timeBudget = Math.max(15, parseInt(document.getElementById('timeBudget').value||'60',10));
+    const routeType = document.getElementById('routeType').value;
+    const moveMode = document.getElementById('moveMode').value;
+    const radiusKm = Math.max(0.5, parseFloat(document.getElementById('radiusKm').value||'2.5'));
+    const preferIds = getPreferIds(), avoidIds = getAvoidIds();
+    const preferSet = new Set(preferIds), avoidSet = new Set(avoidIds);
+    const maxPerCat = Math.max(1, parseInt(document.getElementById('maxPerCat').value||'3',10));
+    const enforcePreferred = document.getElementById('enforcePreferred').checked;
+    const blockSeq = getBlockSequenceUI();
+
+    const effRadiusKm = radiusKm + (moveMode === 'bike' ? BIKE_RADIUS_BONUS_KM : 0);
+    radiusHint.textContent = moveMode === 'bike' ? `Raggio effettivo in bici: ${effRadiusKm.toFixed(1)} km` : `Raggio effettivo a piedi: ${effRadiusKm.toFixed(1)} km`;
+
+    const pois = await fetchPOIs(origin, selected, Math.round(effRadiusKm*1000));
+    const filtered = pois.filter(p => !avoidSet.has(p.category));
+    renderPOIs(filtered);
+
+    const plan = await planRouteReal(origin, filtered, timeBudget, preferSet, avoidSet, enforcePreferred, maxPerCat, blockSeq, routeType, moveMode);
+    await renderRouteWithOSRM(origin, plan.steps, routeType);
+    await renderItinerary(plan.steps, plan.returnMin, routeType);
+
+    const gbtn = $('btnGMaps');
+    const gurl = buildGoogleMapsURL(origin, plan.steps, routeType, moveMode);
+    if(gurl){ gbtn.disabled=false; gbtn.onclick=()=>openInGoogleMaps(gurl); } else { gbtn.disabled=true; gbtn.onclick=null; }
+  }
+
+  $('btnFind').addEventListener('click', async ()=>{
+    const btn = $('btnFind');
+    btn.disabled=true; btn.textContent='Elaboro…';
+    try{ await mainFlow(); } catch(e){ if(e && e.message) console.warn(e.message); }
+    finally{ btn.disabled=false; btn.textContent='Trova POI & Genera itinerario'; }
+  });
+
+  btnGeo.addEventListener('click', async ()=>{
+    modeAuto.checked=true; modeManual.checked=false; manualWrap.style.display='none'; $('geoWrap').style.display='block';
+    await requestGeolocation();
+    if(lastOrigin) map.setView([lastOrigin.lat,lastOrigin.lng], 15);
+  });
+
+  modeAuto.addEventListener('change', ()=>{
+    if(modeAuto.checked){ manualWrap.style.display='none'; $('geoWrap').style.display='block'; }
+  });
+  modeManual.addEventListener('change', ()=>{
+    if(modeManual.checked){ manualWrap.style.display='block'; $('geoWrap').style.display='none'; }
+  });
+
+  (async()=>{
+    map.setView([45.07,11.79], 12);
+    const usp=new URLSearchParams(location.search);
+    if(usp.has('start')){
+      const [la,lo]=(usp.get('start')||'').split(',').map(parseFloat);
+      if(isFinite(la)&&isFinite(lo)){ modeManual.checked=true; modeAuto.checked=false; manualWrap.style.display='block'; $('geoWrap').style.display='none'; setOrigin(la,lo,'manual'); }
+    } else {
+      const perm = await checkPermission();
+      if(perm==='granted' && modeAuto.checked){ await requestGeolocation(); }
+    }
+    try{ const saved = JSON.parse(localStorage.getItem('tn_manual_origin')||'null'); if(saved && isFinite(saved.lat)&&isFinite(saved.lng)){ coordsPill.textContent = `Lat ${saved.lat.toFixed(5)}, Lng ${saved.lng.toFixed(5)}`; } }catch(_){}
+  })();
+</script>
+</body>
+</html>
