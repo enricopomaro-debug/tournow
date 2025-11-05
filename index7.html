@@ -3,86 +3,36 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TourNow • v12 (Start manuale)</title>
+  <title>TourNow • v11 (Ottimizzata)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <style>
-    :root {
-      --bg: #0f1115;
-      --card: #171a21;
-      --text: #e8eaf2;
-      --muted: #aab0c0;
-      --accent: #6ee7b7;
-      --accent-2: #93c5fd;
-      --danger: #fda4af;
+    :root{
+      --bg:#0f1115;--card:#171a21;--text:#e8eaf2;--muted:#aab0c0;
+      --border:#242938;--accent:#93c5fd;--accent2:#6ee7b7;--danger:#fda4af;
     }
-    html, body {height: 100%;}
-    body {margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text);}    
-    header {position: sticky; top: 0; z-index: 10; background: linear-gradient(180deg, rgba(23,26,33,.95), rgba(23,26,33,.7)); backdrop-filter: blur(6px);}
-    .container {max-width: 1200px; margin: 0 auto; padding: 16px;}
-    .toolbar {display: grid; gap: 12px; grid-template-columns: 1.2fr 1fr 1fr auto; align-items: center;}
-    .card {background: var(--card); border: 1px solid #242938; border-radius: 14px; padding: 12px;}
-    .row {display: flex; gap: 10px; align-items: center; flex-wrap: wrap;}
-    label {font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);}    
-    input[type="text"], select {width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #2a3142; background: #0f1320; color: var(--text);}
-    button {padding: 10px 14px; border-radius: 12px; border: 1px solid #2a3142; background: #0f1320; color: var(--text); cursor: pointer;}
-    button.primary {background: linear-gradient(90deg, #2563eb, #10b981); border: none;}
-    button:disabled {opacity: .6; cursor: not-allowed;}
-    .tag {display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; border: 1px solid #2a3142; background: #0f1320; font-size: 12px; color: var(--muted);}  
-    .switch {display: inline-flex; gap: 10px; align-items: center;}
-    .switch input {accent-color: #10b981;}
-    .muted {color: var(--muted);}
-    #map {height: calc(100vh - 140px);}    
-
-    /* Autocomplete */
-    .ac-wrap {position: relative;}
-    .ac-list {position: absolute; top: 100%; left: 0; right: 0; background: #0b0f1a; border: 1px solid #2a3142; border-radius: 12px; margin-top: 6px; max-height: 280px; overflow: auto; z-index: 20;}
-    .ac-item {padding: 10px 12px; cursor: pointer; border-bottom: 1px dashed #1f2635;}
-    .ac-item:last-child {border-bottom: none;}
-    .ac-item:hover {background: #12182a;}
-    .pill {font-size: 11px; padding: 2px 6px; border-radius: 999px; border: 1px solid #2a3142; color: var(--muted);} 
-    .mini-map {height: 220px; border-radius: 12px; overflow: hidden; border: 1px solid #2a3142;}
-
-    @media (max-width: 900px){
-      .toolbar {grid-template-columns: 1fr;}
-      #map {height: 65vh;}
-    }
+    html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    header{position:sticky;top:0;z-index:10;background:linear-gradient(180deg,rgba(23,26,33,.95),rgba(23,26,33,.7));backdrop-filter:blur(6px)}
+    .container{max-width:1200px;margin:0 auto;padding:16px}
+    .toolbar{display:grid;gap:12px;grid-template-columns:1fr 1fr auto;align-items:end}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px}
+    label{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+    select,input,button{padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#0f1320;color:var(--text)}
+    button{cursor:pointer}
+    button.primary{background:linear-gradient(90deg,#2563eb,#10b981);border:none}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    #map{height:calc(100vh - 140px)}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .pill{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--border);border-radius:999px;padding:6px 10px;color:var(--muted);font-size:12px}
+    .banner{display:none;margin-top:10px;border:1px solid var(--border);border-left:4px solid var(--danger);background:#1b0f12;color:#ffd7db;border-radius:10px;padding:10px}
+    .ok{border-left-color:var(--accent2);background:#0f1b14;color:#caf0d5}
+    @media (max-width:900px){.toolbar{grid-template-columns:1fr}#map{height:65vh}}
   </style>
 </head>
 <body>
   <header>
     <div class="container">
       <div class="toolbar card">
-        <!-- LOCATION MODE -->
-        <div>
-          <label>Posizione di partenza</label>
-          <div class="row">
-            <span class="tag">Modo</span>
-            <div class="switch">
-              <input type="radio" name="locMode" id="locAuto" value="auto" checked />
-              <label for="locAuto">Usa la mia posizione</label>
-            </div>
-            <div class="switch">
-              <input type="radio" name="locMode" id="locManual" value="manual" />
-              <label for="locManual">Imposta manualmente</label>
-            </div>
-          </div>
-        </div>
-        
-        <!-- MANUAL INPUTS -->
-        <div id="manualControls" style="display:none">
-          <label for="manualAddress">Cerca un indirizzo o luogo</label>
-          <div class="ac-wrap">
-            <input id="manualAddress" type="text" placeholder="Es. Piazza San Marco, Venezia" autocomplete="off" />
-            <div id="acList" class="ac-list" style="display:none"></div>
-          </div>
-          <div class="row" style="margin-top:8px">
-            <span class="pill" id="pickedCoords">—</span>
-            <button id="openPicker">Apri selettore mappa</button>
-            <button id="clearManual" title="Pulisci">Pulisci</button>
-          </div>
-        </div>
-
-        <!-- DURATION / CATEGORY (placeholder - keep your existing controls if different) -->
         <div>
           <label for="duration">Durata</label>
           <select id="duration">
@@ -91,7 +41,6 @@
             <option value="180">3 ore</option>
           </select>
         </div>
-
         <div>
           <label for="category">Categoria</label>
           <select id="category">
@@ -101,21 +50,11 @@
             <option value="parks">Parchi</option>
           </select>
         </div>
-
         <div style="justify-self:end">
           <button class="primary" id="btnGenerate">Genera itinerario</button>
         </div>
       </div>
-      
-      <!-- MAP PICKER PANEL (collapsible) -->
-      <div id="pickerPanel" class="card" style="margin-top:10px; display:none">
-        <div class="row" style="justify-content:space-between">
-          <strong>Seleziona punto di partenza sulla mappa</strong>
-          <button id="closePicker">Chiudi</button>
-        </div>
-        <div id="miniMap" class="mini-map" style="margin-top:8px"></div>
-        <p class="muted" style="margin-top:8px">Clicca sulla mappa per impostare il punto. Trascina il marker per affinare. Lo zoom parte sul Nord Italia.</p>
-      </div>
+      <div id="status" class="banner"></div>
     </div>
   </header>
 
@@ -126,19 +65,31 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
     // =========================
+    // MINI UTILS
+    // =========================
+    const $ = (id)=>document.getElementById(id);
+    function showBanner(msg, ok=false){
+      const box = $("status");
+      box.textContent = msg;
+      box.className = "banner" + (ok ? " ok": "");
+      box.style.display = "block";
+      clearTimeout(showBanner._t);
+      showBanner._t = setTimeout(()=>{ box.style.display="none"; }, 4500);
+    }
+    function lsGet(key, fallback){ try{ const v=localStorage.getItem(key); return v ?? fallback; }catch{ return fallback } }
+    function lsSet(key, value){ try{ localStorage.setItem(key, value) }catch{} }
+
+    // =========================
     // STATE
     // =========================
     const state = {
-      locMode: 'auto', // 'auto' | 'manual'
-      manualLatLng: null, // {lat, lng}
       map: null,
-      userMarker: null,
-      miniMap: null,
-      miniMarker: null
+      markers: L.layerGroup(),
+      userMarker: null
     };
 
     // =========================
-    // MAP INIT (Main)
+    // MAP INIT
     // =========================
     const map = L.map('map');
     state.map = map;
@@ -146,212 +97,99 @@
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
     }).addTo(map);
-    map.setView([45.07, 11.79], 12); // Focus iniziale su Rovigo/Lusia approx
+    state.markers.addTo(map);
+    map.setView([45.07, 11.79], 12); // Rovigo/Lusia approx
 
-    function setUserMarker(lat, lng, label='Partenza'){
-      if(state.userMarker){ state.map.removeLayer(state.userMarker); }
-      state.userMarker = L.marker([lat, lng], {draggable: false}).addTo(state.map).bindPopup(label).openPopup();
+    function setUserMarker(lat, lng, label='La mia posizione'){
+      if(state.userMarker) state.map.removeLayer(state.userMarker);
+      state.userMarker = L.marker([lat, lng]).addTo(state.map).bindPopup(label).openPopup();
     }
 
     // =========================
-    // UI: Location mode toggle
+    // DYNAMIC CONTROLS (persist)
     // =========================
-    const locAuto = document.getElementById('locAuto');
-    const locManual = document.getElementById('locManual');
-    const manualControls = document.getElementById('manualControls');
-
-    function refreshLocMode(){
-      state.locMode = locManual.checked ? 'manual' : 'auto';
-      manualControls.style.display = state.locMode === 'manual' ? 'block' : 'none';
-    }
-
-    locAuto.addEventListener('change', refreshLocMode);
-    locManual.addEventListener('change', refreshLocMode);
+    $("duration").value = lsGet("tw_duration", "120");
+    $("category").value = lsGet("tw_category", "all");
+    $("duration").addEventListener("change", e=>lsSet("tw_duration", e.target.value));
+    $("category").addEventListener("change", e=>lsSet("tw_category", e.target.value));
 
     // =========================
-    // AUTOCOMPLETE with Nominatim
+    // SAMPLE POIs (placeholder)
     // =========================
-    const manualAddress = document.getElementById('manualAddress');
-    const acList = document.getElementById('acList');
-    const pickedCoords = document.getElementById('pickedCoords');
-    const clearManualBtn = document.getElementById('clearManual');
+    const POIS = [
+      {id:1, name:"Caffè Centrale", lat:45.072, lng:11.788, type:"food"},
+      {id:2, name:"Duomo storico", lat:45.068, lng:11.786, type:"monuments"},
+      {id:3, name:"Parco cittadino", lat:45.075, lng:11.793, type:"parks"}
+    ];
+    function filterPOIs(cat){ return cat==="all" ? POIS : POIS.filter(p=>p.type===cat); }
 
-    let acTimer = null;
-    manualAddress.addEventListener('input', () => {
-      const q = manualAddress.value.trim();
-      if(acTimer) clearTimeout(acTimer);
-      if(!q){ acList.style.display='none'; acList.innerHTML=''; return; }
-      acTimer = setTimeout(() => doNominatim(q), 250);
-    });
-
-    async function doNominatim(q){
-      try {
-        const url = new URL('https://nominatim.openstreetmap.org/search');
-        url.searchParams.set('q', q);
-        url.searchParams.set('format', 'json');
-        url.searchParams.set('addressdetails', '1');
-        url.searchParams.set('limit', '8');
-        url.searchParams.set('countrycodes', 'it'); // prioritizza Italia
-        const res = await fetch(url.toString(), {
-          headers: {
-            'Accept': 'application/json',
-            // Inserisci una email di contatto per rispettare la policy di Nominatim.
-            'enricopomaro@gmail.com': 'TourNow/12 (+contact: your-email@example.com)'
-          }
-        });
-        if(!res.ok) throw new Error('Geo API non disponibile');
-        const data = await res.json();
-        renderAC(data);
-      } catch(err){
-        acList.innerHTML = `<div class="ac-item">Errore ricerca: ${err.message}</div>`;
-        acList.style.display = 'block';
+    function drawPOIs(pois){
+      state.markers.clearLayers();
+      const group = L.featureGroup();
+      pois.forEach(p=>{
+        const m = L.circleMarker([p.lat, p.lng], {radius:6});
+        m.bindPopup(p.name);
+        state.markers.addLayer(m);
+        group.addLayer(L.marker([p.lat, p.lng])); // for bounds calc
+      });
+      if(pois.length){
+        map.fitBounds(group.getBounds().pad(0.2));
       }
     }
 
-    function renderAC(results){
-      if(!results || !results.length){ acList.innerHTML = '<div class="ac-item">Nessun risultato</div>'; acList.style.display='block'; return; }
-      acList.innerHTML = results.map(r => `
-        <div class="ac-item" data-lat="${r.lat}" data-lon="${r.lon}">
-          <div><strong>${escapeHTML(r.display_name.split(',')[0] || 'Luogo')}</strong></div>
-          <div class="muted" style="font-size:12px">${escapeHTML(r.display_name)}</div>
-        </div>`).join('');
-      acList.style.display = 'block';
-    }
-
-    acList.addEventListener('click', (e) => {
-      const item = e.target.closest('.ac-item');
-      if(!item) return;
-      const lat = parseFloat(item.dataset.lat);
-      const lon = parseFloat(item.dataset.lon);
-      state.manualLatLng = {lat, lng: lon};
-      pickedCoords.textContent = `Lat ${lat.toFixed(5)}, Lng ${lon.toFixed(5)}`;
-      acList.style.display='none';
-      manualAddress.value = item.querySelector('div strong')?.textContent || manualAddress.value;
-      setUserMarker(lat, lon, 'Partenza (manuale)');
-      map.setView([lat, lon], 15);
-    });
-
-    clearManualBtn.addEventListener('click', () => {
-      state.manualLatLng = null; manualAddress.value = ''; pickedCoords.textContent = '—';
-      acList.style.display='none'; acList.innerHTML='';
-    });
-
-    function escapeHTML(s){
-      return s.replace(/[&<>"]+/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-    }
-
     // =========================
-    // MAP PICKER (Mini map)
+    // GEOLOCATION
     // =========================
-    const pickerPanel = document.getElementById('pickerPanel');
-    const openPicker = document.getElementById('openPicker');
-    const closePicker = document.getElementById('closePicker');
-
-    openPicker.addEventListener('click', () => {
-      pickerPanel.style.display = 'block';
-      if(!state.miniMap){ initMiniMap(); } else { state.miniMap.invalidateSize(); }
-    });
-    closePicker.addEventListener('click', () => pickerPanel.style.display='none');
-
-    function initMiniMap(){
-      state.miniMap = L.map('miniMap');
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19}).addTo(state.miniMap);
-      state.miniMap.setView([45.3, 11.8], 8); // Nord Italia
-
-      state.miniMap.on('click', (e) => {
-        const {lat, lng} = e.latlng;
-        setMiniMarker(lat, lng);
-        state.manualLatLng = {lat, lng};
-        pickedCoords.textContent = `Lat ${lat.toFixed(5)}, Lng ${lng.toFixed(5)}`;
-        setUserMarker(lat, lng, 'Partenza (manuale)');
-        map.setView([lat, lng], 15);
-      });
-    }
-
-    function setMiniMarker(lat, lng){
-      if(state.miniMarker){ state.miniMap.removeLayer(state.miniMarker); }
-      state.miniMarker = L.marker([lat, lng], {draggable: true}).addTo(state.miniMap);
-      state.miniMarker.on('dragend', (e) => {
-        const {lat, lng} = e.target.getLatLng();
-        state.manualLatLng = {lat, lng};
-        pickedCoords.textContent = `Lat ${lat.toFixed(5)}, Lng ${lng.toFixed(5)}`;
-        setUserMarker(lat, lng, 'Partenza (manuale)');
-        map.setView([lat, lng], 15);
-      });
-    }
-
-    // =========================
-    // POSITION RESOLUTION
-    // =========================
-    async function resolveStartPosition(){
-      if(state.locMode === 'manual'){
-        if(state.manualLatLng) return state.manualLatLng;
-        throw new Error('Imposta una posizione manuale (ricerca o mappa).');
-      }
-      // AUTO mode: try geolocation, if denied suggest manual
-      try {
-        const pos = await new Promise((resolve, reject) => {
-          if(!navigator.geolocation) return reject(new Error('Geolocalizzazione non disponibile'));
+    async function getUserLocation(){
+      try{
+        const pos = await new Promise((resolve, reject)=>{
+          if(!navigator.geolocation) return reject(new Error("Geolocalizzazione non supportata"));
           navigator.geolocation.getCurrentPosition(
-            (p) => resolve({lat: p.coords.latitude, lng: p.coords.longitude}),
-            (err) => reject(err),
-            {enableHighAccuracy: true, timeout: 8000, maximumAge: 30000}
+            p=>resolve({lat:p.coords.latitude, lng:p.coords.longitude}),
+            err=>reject(err),
+            {enableHighAccuracy:true, timeout:8000, maximumAge:30000}
           );
         });
         return pos;
-      } catch(err){
-        // Switch UI to manual as fallback
-        locManual.checked = true; refreshLocMode();
-        throw new Error('Posizione non disponibile. Attiva i permessi oppure imposta manualmente.');
+      }catch(err){
+        throw new Error("Posizione non disponibile. Consenti i permessi del browser.");
       }
     }
 
     // =========================
-    // PLACEHOLDER: Your existing POIs/logic
+    // ITINERARY (stub invariato)
     // =========================
-    const POIS = [
-      {id: 1, name: 'Caffè Centrale', lat: 45.072, lng: 11.788, type: 'food'},
-      {id: 2, name: 'Duomo storico', lat: 45.068, lng: 11.786, type: 'monuments'},
-      {id: 3, name: 'Parco cittadino', lat: 45.075, lng: 11.793, type: 'parks'}
-    ];
-
-    function filterPOIs(cat){
-      return cat === 'all' ? POIS : POIS.filter(p => p.type === cat);
-    }
-
-    function drawPOIs(pois){
-      pois.forEach(p => L.circleMarker([p.lat, p.lng], {radius: 6}).addTo(map).bindPopup(p.name));
-    }
-
-    // =========================
-    // GENERATE ITINERARY (simplified stub)
-    // =========================
-    document.getElementById('btnGenerate').addEventListener('click', async () => {
-      const btn = document.getElementById('btnGenerate');
-      btn.disabled = true; btn.textContent = 'Calcolo…';
-      try {
-        const start = await resolveStartPosition();
+    async function generate(){
+      const btn = $("btnGenerate");
+      btn.disabled = true; const prev = btn.textContent; btn.textContent = "Calcolo…";
+      try{
+        const start = await getUserLocation();
         setUserMarker(start.lat, start.lng);
         map.setView([start.lat, start.lng], 14);
 
-        const cat = document.getElementById('category').value;
+        const cat = $("category").value;
         const list = filterPOIs(cat);
         drawPOIs(list);
-        // TODO: integra la tua logica di percorso/ottimizzazione tempi qui usando "start"
-      } catch(err){
-        alert(err.message);
-      } finally {
-        btn.disabled = false; btn.textContent = 'Genera itinerario';
-      }
-    });
 
-    // First load: try to set auto position softly (no error popups)
+        showBanner("Itinerario generato dalla tua posizione", true);
+        // TODO: qui resta la tua logica v11 per tempi/percorso usando 'start'
+      }catch(err){
+        showBanner(err.message, false);
+      }finally{
+        btn.disabled = false; btn.textContent = prev;
+      }
+    }
+
+    $("btnGenerate").addEventListener("click", generate);
+
+    // Soft preflight (niente alert)
     (async function preflight(){
-      try {
-        const pos = await resolveStartPosition();
-        setUserMarker(pos.lat, pos.lng, 'La mia posizione');
+      try{
+        const pos = await getUserLocation();
+        setUserMarker(pos.lat, pos.lng);
         map.setView([pos.lat, pos.lng], 14);
-      } catch(_){ /* silent */ }
+        showBanner("Posizione rilevata", true);
+      }catch(_){ /* silenzioso */ }
     })();
   </script>
 </body>
