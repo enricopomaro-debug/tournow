@@ -697,7 +697,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
       if(bestIdx<0) break;
 
       const poi = coords[bestIdx];
-      visit.push({ ...poi, travelMin: bestFit.travelMin, dwellMin: bestFit.dwellMin, preferred: preferSet.has(poi.category) });
+      visit.push({ ...poi, idx: bestIdx, travelMin: bestFit.travelMin, dwellMin: bestFit.dwellMin, preferred: preferSet.has(poi.category) });
       timeUsedMin += bestFit.travelMin + bestFit.dwellMin;
       perCatCount[poi.category] = (perCatCount[poi.category]||0) + 1;
       hasPreferred = hasPreferred || preferSet.has(poi.category);
@@ -709,7 +709,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
     let returnMin = 0;
     if(routeType==='loop' && visit.length){
       const last = visit[visit.length-1];
-      const lastIdx = coords.indexOf(last);
+      const lastIdx = last.idx;
       const backSec = durations[lastIdx][0];
       if(backSec!=null){ returnMin = Math.ceil(backSec/60); }
     }
@@ -915,13 +915,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
     const gurl = buildGoogleMapsURL(origin, plan.steps, routeType, moveMode);
     if(gurl){ gbtn.disabled=false; gbtn.onclick=()=>openInGoogleMaps(gurl); } else { gbtn.disabled=true; gbtn.onclick=null; }
   }
-
-  const btnGeo = document.getElementById('btnGeo');
-  const modeAuto = document.getElementById('modeAuto');
-  const modeManual = document.getElementById('modeManual');
-  const manualWrap = document.getElementById('manualWrap');
-
-  document.getElementById('btnFind').addEventListener('click', async ()=>{
+document.getElementById('btnFind').addEventListener('click', async ()=>{
     const btn = document.getElementById('btnFind');
     btn.disabled=true; btn.textContent='Elaboro…';
     try{ await mainFlow(); } catch(e){ if(e && e.message) console.warn(e.message); }
