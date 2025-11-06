@@ -3,55 +3,55 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>TourNow — v11+manual (partenza manuale + percorso disegnato)</title>
+  <title>TourNow — v11 (partenza manuale + percorso collegato)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
   <style>
     :root { --bg:#0b0b0c; --panel:#151518; --text:#f1f5f9; --muted:#94a3b8; --accent:#22d3ee; --border:#2b2b33; }
     *{box-sizing:border-box}
-    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Arial;background:var(--bg);color:var(--text)}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Arial;background:#0b0b0c;color:#f1f5f9}
     header{padding:14px 16px;border-bottom:1px solid #23232a;display:flex;gap:12px;align-items:center;justify-content:space-between}
     header h1{font-size:18px;margin:0}
-    .badge{padding:4px 8px;border:1px solid var(--border);border-radius:999px;font-size:12px;color:var(--muted)}
+    .badge{padding:4px 8px;border:1px solid var(--border);border-radius:999px;font-size:12px;color:#94a3b8}
     .container{display:grid;grid-template-columns:460px 1fr;min-height:calc(100vh - 56px)}
     @media (max-width:900px){.container{grid-template-columns:1fr}}
     .panel{padding:16px;background:#151518;border-right:1px solid #23232a}
     .row{display:flex;gap:8px}.row>*{flex:1}
-    .field{margin-bottom:12px}.label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    .field{margin-bottom:12px}.label{display:block;font-size:12px;color:#94a3b8;margin-bottom:6px}
     .checkboxes{display:flex;flex-wrap:wrap;gap:8px}
-    .chip{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:#101014;user-select:none}
-    .chip input{accent-color:var(--accent)}
-    input[type="number"],input[type="text"],select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#101014;color:#f1f5f9}
+    .chip{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #2b2b33;border-radius:12px;background:#101014;user-select:none}
+    .chip input{accent-color:#22d3ee}
+    input[type="number"],input[type="text"],select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #2b2b33;background:#101014;color:#f1f5f9}
     button{width:100%;padding:12px 14px;border:none;border-radius:12px;background:linear-gradient(90deg,#06b6d4,#22d3ee);color:#001017;font-weight:700;cursor:pointer;margin-top:6px}
-    button.ghost{background:#101014;color:#cfe9ef;border:1px solid var(--border)}
+    button.ghost{background:#101014;color:#cfe9ef;border:1px solid #2b2b33}
     button:disabled{opacity:.5;cursor:not-allowed}
     #map{width:100%;height:calc(100vh - 56px)}
     .itinerary{margin-top:14px;border-top:1px solid #23232a;padding-top:12px}
-    .step{padding:10px 12px;background:#101014;border:1px solid var(--border);border-radius:10px;margin-bottom:8px}
+    .step{padding:10px 12px;background:#101014;border:1px solid #2b2b33;border-radius:10px;margin-bottom:8px}
     .legend{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-    .legend .tag{font-size:11px;padding:4px 8px;background:#101014;border:1px solid var(--border);border-radius:999px;color:#cbd5e1}
+    .legend .tag{font-size:11px;padding:4px 8px;background:#101014;border:1px solid #2b2b33;border-radius:999px;color:#cbd5e1}
     .ai-note{font-size:12px;color:#9ad2df;margin:6px 0 0}
     .title{font-weight:800;margin:4px 0 6px}
     .summary{font-size:13px;color:#cfe9ef;margin:0 0 8px}
-    .pill{display:inline-block;font-size:11px;padding:2px 6px;border-radius:999px;border:1px solid var(--border);margin-left:6px}
+    .pill{display:inline-block;font-size:11px;padding:2px 6px;border-radius:999px;border:1px solid #2b2b33;margin-left:6px}
     .hint{font-size:11px;color:#8aa1b6;margin-top:4px}
-    .status{font-size:12px;color:#cfe9ef;background:#101014;border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-top:8px}
+    .status{font-size:12px;color:#cfe9ef;background:#101014;border:1px solid #2b2b33;border-radius:10px;padding:8px 10px;margin-top:8px}
     .status strong{color:#22d3ee}
     .ac-wrap{position:relative}
-    .ac-list{position:absolute;top:100%;left:0;right:0;background:#0f1219;border:1px solid var(--border);border-radius:10px;max-height:240px;overflow:auto;z-index:10}
+    .ac-list{position:absolute;top:100%;left:0;right:0;background:#0f1219;border:1px solid #2b2b33;border-radius:10px;max-height:240px;overflow:auto;z-index:10}
     .ac-item{padding:10px 12px;border-bottom:1px dashed #1b2230;cursor:pointer}
     .ac-item:last-child{border-bottom:none}
     .ac-item:hover{background:#101826}
     .mode-row{display:flex;gap:8px;align-items:center}
-    .radio{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:#101014;cursor:pointer;user-select:none}
+    .radio{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #2b2b33;border-radius:12px;background:#101014;cursor:pointer;user-select:none}
     .radio input{accent-color:#10b981}
-    .coords-pill{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:999px;color:#cbd5e1;font-size:12px}
+    .coords-pill{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border:1px solid #2b2b33;border-radius:999px;color:#cbd5e1;font-size:12px}
   </style>
 </head>
 <body>
 <header>
   <h1>TourNow — tour operator istantaneo</h1>
-  <span class="badge">v11 + partenza manuale • percorso disegnato</span>
+  <span class="badge">v11 • partenza manuale • percorso collegato</span>
 </header>
 
 <div class="container">
@@ -182,19 +182,23 @@
   const OSRM_BASE='https://router.project-osrm.org';
   const BIKE_TIME_FACTOR=0.35, BIKE_DWELL_FACTOR=0.8, BIKE_RADIUS_BONUS_KM=2;
   const PREFERRED_BONUS_SECONDS=6*60;
+
+  const NOMINATIM_UA = 'TourNow/v11 (+contact: enrico.tournow@gmail.com)';
+
   const COLORS={}, toRad=d=>d*Math.PI/180;
+  const $ = id => document.getElementById(id);
+  const lonOf = (o) => { const v = o && (o.lon ?? o.lng); return typeof v === 'string' ? parseFloat(v) : v; };
+
   function haversineKm(a,b){
     const R=6371;
     const la1=a.lat, la2=b.lat;
-    const lo1=(a.lng!=null?a.lng:a.lon);
-    const lo2=(b.lng!=null?b.lng:b.lon);
+    const lo1=lonOf(a), lo2=lonOf(b);
     const dLat=toRad(la2-la1);
     const dLon=toRad(lo2-lo1);
     const s=Math.sin(dLat/2)**2 + Math.cos(toRad(la1))*Math.cos(toRad(la2))*Math.sin(dLon/2)**2;
     return 2*R*Math.asin(Math.sqrt(s||0));
   }
   function autoColor(i){const hues=[188,160,40,12,320,260,90,200,22,280,140,30];return `hsl(${hues[i%hues.length]} 90% 60%)`; }
-  const $ = id => document.getElementById(id);
 
   const CATEGORIES=[
     {id:"culture",label:"Musei/Gallerie",query:'["tourism"~"museum|gallery"]',dwell:40},
@@ -223,19 +227,10 @@
     {id:"shopping",label:"Vie dello shopping",query:'["shop"]["name"]',dwell:20},
   ];
 
-  const interestsWrap=$('interests');
-  const preferWrap=$('preferBox');
-  const avoidWrap=$('avoidBox');
-  const legendWrap=$('legend');
-  const radiusHint=$('radiusHint');
-  const geoStatus=$('geoStatus');
-  const btnGeo=$('btnGeo');
-  const modeAuto=$('modeAuto');
-  const modeManual=$('modeManual');
-  const manualWrap=$('manualWrap');
-  const manualAddress=$('manualAddress');
-  const acList=$('acList');
-  const coordsPill=$('coordsPill');
+  const interestsWrap=$('interests'), preferWrap=$('preferBox'), avoidWrap=$('avoidBox'), legendWrap=$('legend');
+  const radiusHint=$('radiusHint'), geoStatus=$('geoStatus'), btnGeo=$('btnGeo');
+  const modeAuto=$('modeAuto'), modeManual=$('modeManual'), manualWrap=$('manualWrap');
+  const manualAddress=$('manualAddress'), acList=$('acList'), coordsPill=$('coordsPill');
 
   CATEGORIES.forEach((c,i)=>{
     COLORS[c.id]=autoColor(i);
@@ -299,7 +294,8 @@
   }
 
   function setOrigin(lat,lng,from='manual'){
-    lastOrigin={lat,lng}; map.setView([lat,lng], 15);
+    lastOrigin={lat,lng}; lastOrigin.lon=lng;
+    map.setView([lat,lng], 15);
     if(userMarker) map.removeLayer(userMarker);
     userMarker = L.marker([lat,lng], {title:'Partenza'}).addTo(map).bindPopup(from==='geo'?'Tu sei qui':'Partenza impostata a mano');
     if(modeManual.checked){
@@ -349,8 +345,7 @@
       const res = await fetch(url.toString(), {
         headers: {
           'Accept':'application/json',
-          // ⚠️ METTI LA TUA EMAIL QUI sotto per rispettare la policy di Nominatim
-          'User-Agent': 'TourNow/v11+manual (+contact: enricopomaro@gmail.com)'
+          'User-Agent': NOMINATIM_UA
         }
       });
       if(!res.ok) throw new Error('Geo API non disponibile');
@@ -383,9 +378,9 @@
     const parts = selectedIds.map(id=>{
       const cat=CATEGORIES.find(c=>c.id===id);
       return `
-node${cat.query}(around:${radiusM},${center.lat},${center.lng});
-way${cat.query}(around:${radiusM},${center.lat},${center.lng});
-relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
+node${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});
+way${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});
+relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
     }).join('\n');
     return `[out:json][timeout:25];(${parts});out center 60;`;
   }
@@ -406,25 +401,24 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
           if(lat==null || lon==null) return null;
           const tags = e.tags||{};
           const name = tags.name || tags['name:it'] || tags['name:en'] || 'Punto d’interesse';
-          return { id:`${e.type}/${e.id}`, name, lat, lon, tags, category:detectCategory(tags) }
+          return { id:`${e.type}/${e.id}`, name, lat, lon, lng:lon, tags, category:detectCategory(tags) }
         }).filter(Boolean);
         const dedup = Object.values(items.reduce((acc,n)=>{acc[n.id]=n;return acc;}, {}));
         if(dedup.length) return dedup;
       }catch(_){}
     }
-    // fallback sintetico
     const synth = Array.from({length:6}).map((_,i)=>{
       const ang = (i/6)*2*Math.PI;
       const dKm = Math.min( radiusM/1000, 1.2 );
       const lat = center.lat + (dKm/111)*Math.cos(ang);
-      const lon = center.lng + (dKm/(111*Math.cos(center.lat*Math.PI/180)))*Math.sin(ang);
-      return { id:'synth'+i, name:'Punto interessante '+(i+1), lat, lon, tags:{}, category:(selectedIds[0]||'landmark') };
+      const lon = lonOf(center) + (dKm/(111*Math.cos(center.lat*Math.PI/180)))*Math.sin(ang);
+      return { id:'synth'+i, name:'Punto interessante '+(i+1), lat, lon, lng:lon, tags:{}, category:(selectedIds[0]||'landmark') };
     });
     return synth;
   }
 
   async function osrmTableFoot(coords){
-    const coordStr = coords.map(c=>`${c.lon},${c.lat}`).join(';');
+    const coordStr = coords.map(c=>`${lonOf(c)},${c.lat}`).join(';');
     const url = `${OSRM_BASE}/table/v1/foot/${coordStr}?annotations=duration`;
     try{
       const r = await fetch(url); if(!r.ok) throw new Error('osrm_'+r.status);
@@ -440,12 +434,11 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
     }
   }
   async function osrmRouteFoot(a,b){
-    const url = `${OSRM_BASE}/route/v1/foot/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson&steps=false`;
+    const url = `${OSRM_BASE}/route/v1/foot/${lonOf(a)},${a.lat};${lonOf(b)},${b.lat}?overview=full&geometries=geojson&steps=false`;
     try{
       const r = await fetch(url); if(!r.ok) throw new Error('osrm_'+r.status);
       return await r.json();
     }catch(_){
-      // tornerà null e useremo fallback dritto
       return null;
     }
   }
@@ -468,12 +461,12 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
     const filtered = pois.filter(p => !avoidSet.has(p.category));
     const maxPois = Math.max(5, parseInt(document.getElementById('maxPois').value||'40',10));
     const sorted = [...filtered].sort((a,b)=>{
-      const da=haversineKm(origin,{lat:a.lat,lng:a.lon});
-      const db=haversineKm(origin,{lat:b.lat,lng:b.lon});
+      const da=haversineKm(origin,{lat:a.lat,lon:a.lon});
+      const db=haversineKm(origin,{lat:b.lat,lon:b.lon});
       return da-db;
     }).slice(0,maxPois);
 
-    const originForMatrix = { lat: origin.lat, lon: (origin.lon!=null?origin.lon:origin.lng) };
+    const originForMatrix = { lat: origin.lat, lon: lonOf(origin) };
     const coords=[originForMatrix, ...sorted];
     const table = await osrmTableFoot(coords);
     const durations = table.durations.map(row => row.map(sec => (sec==null?null : (moveMode==='bike' ? Math.max(1, Math.round(sec*BIKE_TIME_FACTOR)) : sec))));
@@ -555,7 +548,6 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
     });
   }
 
-  // 🔹 Sempre disegna una linea tra le tappe: OSRM se c'è, altrimenti dritta
   async function osrmRouteFootDraw(prev, next, bounds, color) {
     let coords = null;
     try {
@@ -564,46 +556,37 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
       if (route && route.geometry && Array.isArray(route.geometry.coordinates) && route.geometry.coordinates.length > 1) {
         coords = route.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
       }
-    } catch (_) { /* fallback */ }
-
+    } catch (_) { }
     if (!coords || !coords.length) {
       coords = [
-        [prev.lat, prev.lon != null ? prev.lon : prev.lng],
-        [next.lat, next.lon]
+        [prev.lat, lonOf(prev)],
+        [next.lat, lonOf(next)]
       ];
     }
-
     L.polyline(coords, { color: color || '#22d3ee', weight: 5, opacity: 0.95 })
       .addTo(routeLayer)
       .bringToFront();
-
     coords.forEach(c => bounds.push(c));
   }
 
   async function renderRouteWithOSRM(origin, steps, routeType){
     routeLayer.clearLayers();
     if(!steps.length) return;
-
-    const originForDraw = {lat: origin.lat, lon: (origin.lon!=null?origin.lon:origin.lng)};
+    const originForDraw = {lat: origin.lat, lon: lonOf(origin)};
     let prev = originForDraw;
-    const bounds = [[origin.lat, (origin.lon!=null?origin.lon:origin.lng)]];
-
+    const bounds = [[origin.lat, lonOf(origin)]];
     for (const s of steps) {
       const segColor = COLORS[s.category] || '#22d3ee';
       await osrmRouteFootDraw(prev, s, bounds, segColor);
-
       const badge = s.preferred ? `<span class="pill" style="border-color:${segColor};color:${segColor}">preferito</span>` : '';
       L.marker([s.lat, s.lon]).bindPopup(
         `<strong>${s.name}</strong> ${badge}<br/><small>${s.category} • spost. ~${s.travelMin} min • sosta ~${s.dwellMin} min</small>`
       ).addTo(routeLayer);
-
       prev = s;
     }
-
     if (routeType === 'loop' && steps.length) {
       await osrmRouteFootDraw(prev, originForDraw, bounds, '#5eead4');
     }
-
     map.fitBounds(bounds,{padding:[28,28]});
   }
 
@@ -626,12 +609,12 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
   const MAX_WAYPOINTS = 8;
   function buildGoogleMapsURL(origin, steps, routeType, moveMode){
     if(!steps || !steps.length) return null;
-    const originLon = (origin.lon!=null?origin.lon:origin.lng);
+    const originLon = lonOf(origin);
     const originStr = `${origin.lat},${originLon}`;
     let destinationStr = `${steps[steps.length-1].lat},${steps[steps.length-1].lon}`;
     let waypoints = steps.slice(0, steps.length-1);
     if(routeType === 'loop'){ destinationStr = originStr; waypoints = steps.slice(0); }
-    let wp = waypoints.map(s => `${s.lat},${s.lon}`);
+    let wp = waypoints.map(s => `${s.lat},${lonOf(s)}`);
     if(wp.length > MAX_WAYPOINTS) wp = wp.slice(0, MAX_WAYPOINTS);
     const travelmode = (moveMode === 'bike') ? 'bicycling' : 'walking';
     const params = new URLSearchParams({ api:'1', origin:originStr, destination:destinationStr, travelmode, hl:'it' });
@@ -725,7 +708,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${center.lng});`.trim();
   btnGeo.addEventListener('click', async ()=>{
     modeAuto.checked=true; modeManual.checked=false; manualWrap.style.display='none'; $('geoWrap').style.display='block';
     await requestGeolocation();
-    if(lastOrigin) map.setView([lastOrigin.lat,lastOrigin.lng], 15);
+    if(lastOrigin) map.setView([lastOrigin.lat,lonOf(lastOrigin)], 15);
   });
 
   modeAuto.addEventListener('change', ()=>{
