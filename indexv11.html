@@ -1,18 +1,20 @@
+
 <!DOCTYPE html>
 <html lang="it">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>TourNow — v11 (partenza manuale + percorso collegato)</title>
+  <title>TourNow — v11 (POI descrizioni potenziate anche nella lista)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
   <style>
     :root { --bg:#0b0b0c; --panel:#151518; --text:#f1f5f9; --muted:#94a3b8; --accent:#22d3ee; --border:#2b2b33; }
     *{box-sizing:border-box}
     body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Arial;background:#0b0b0c;color:#f1f5f9}
-    header{padding:14px 16px;border-bottom:1px solid #23232a;display:flex;gap:12px;align-items:center;justify-content:space-between}
+    header{padding:10px 16px;border-bottom:1px solid #23232a;display:flex;gap:12px;align-items:center;justify-content:space-between}
     header h1{font-size:18px;margin:0}
     .badge{padding:4px 8px;border:1px solid var(--border);border-radius:999px;font-size:12px;color:#94a3b8}
+    .warn{font-size:12px;color:#cbd5e1;background:#101014;border:1px dashed #334155;border-radius:8px;padding:8px 10px;margin:8px 16px}
     .container{display:grid;grid-template-columns:460px 1fr;min-height:calc(100vh - 56px)}
     @media (max-width:900px){.container{grid-template-columns:1fr}}
     .panel{padding:16px;background:#151518;border-right:1px solid #23232a}
@@ -46,13 +48,21 @@
     .radio{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #2b2b33;border-radius:12px;background:#101014;cursor:pointer;user-select:none}
     .radio input{accent-color:#10b981}
     .coords-pill{display:inline-flex;gap:6px;align-items:center;padding:6px 10px;border:1px solid #2b2b33;border-radius:999px;color:#cbd5e1;font-size:12px}
+    .desc-img{width:100%;border-radius:8px;margin-top:6px}
+    .desc-body{color:#cbd5e1;font-size:13px;margin-top:6px}
+    .desc-oh{margin-top:4px;color:#cbd5e1;font-size:12px}
   </style>
 </head>
 <body>
 <header>
   <h1>TourNow — tour operator istantaneo</h1>
-  <span class="badge">v11 • partenza manuale • percorso collegato</span>
+  <span class="badge">v11 • descrizioni potenziate • lista & mappa</span>
 </header>
+
+<div class="warn">
+  ℹ️ <strong>Nota per uso locale:</strong> la geolocalizzazione funziona solo su <strong>HTTPS</strong> o <strong>localhost</strong> (non su <code>file://</code>).
+  Avvia: <code>python -m http.server 5500</code> → apri <code>http://localhost:5500</code>. Oppure usa <strong>partenza manuale</strong>.
+</div>
 
 <div class="container">
   <aside class="panel">
@@ -105,7 +115,6 @@
           <option value="foot">A piedi</option>
           <option value="bike">Bici</option>
         </select>
-        <div class="ai-note">In bici: tempi 0.35×, soste −20%, raggio +2 km.</div>
         <div class="hint" id="radiusHint"></div>
       </div>
       <div class="field">
@@ -163,15 +172,14 @@
     </button>
 
     <div class="itinerary">
-      <div class="title" id="aiTitle"></div>
-      <p class="summary" id="aiSummary"></p>
+      <div class="title">Itinerario</div>
       <div id="itinerary"></div>
       <div class="legend" id="legend"></div>
       <p class="ai-note" id="aiStatus"></p>
     </div>
 
     <div class="hint">
-      Tip: in modalità manuale puoi <strong>cercare un indirizzo</strong> o <strong>cliccare sulla mappa</strong> per impostare il punto di partenza.
+      Tip: in manuale puoi <strong>cercare un indirizzo</strong> o <strong>cliccare sulla mappa</strong> per impostare la partenza.
       <br> Dati: © OpenStreetMap — Overpass API • Routing: OSRM profilo “foot”.
     </div>
   </aside>
@@ -182,8 +190,6 @@
   const OSRM_BASE='https://router.project-osrm.org';
   const BIKE_TIME_FACTOR=0.35, BIKE_DWELL_FACTOR=0.8, BIKE_RADIUS_BONUS_KM=2;
   const PREFERRED_BONUS_SECONDS=6*60;
-
-  const NOMINATIM_UA = 'TourNow/v11 (+contact: enricopomarogmail.com)';
 
   const COLORS={}, toRad=d=>d*Math.PI/180;
   const $ = id => document.getElementById(id);
@@ -276,6 +282,178 @@
     return"landmark";
   }
 
+  // --- WIKI HELPERS ---
+  const WIKI_REST = 'https://{lang}.wikipedia.org/api/rest_v1';
+  const WD_API     = 'https://www.wikidata.org/w/api.php';
+  const wikiCache = new Map();
+  function pickLang() { return 'it'; }
+  function parseWikipediaTag(tagVal) {
+    if (!tagVal) return null;
+    const idx = tagVal.indexOf(':');
+    if (idx < 0) return null;
+    const lang = tagVal.slice(0, idx);
+    const title = tagVal.slice( idx+1 );
+    if (!lang || !title) return null;
+    return { lang, title };
+  }
+  async function getWikiFromWikipediaTag(tagVal) {
+    if (wikiCache.has(tagVal)) return wikiCache.get(tagVal);
+    const info = parseWikipediaTag(tagVal);
+    if (!info) return null;
+    const url = `${WIKI_REST.replace('{lang}', info.lang)}/page/summary/${encodeURIComponent(info.title)}`;
+    try {
+      const r = await fetch(url);
+      if (!r.ok) return null;
+      const js = await r.json();
+      const out = { title: js.title, descHtml: js.extract_html || '', thumb: js.thumbnail?.source || null, url: js.content_urls?.desktop?.page || null };
+      wikiCache.set(tagVal, out);
+      return out;
+    } catch { return null; }
+  }
+  async function getWikiFromWikidataId(qid) {
+    if (wikiCache.has(qid)) return wikiCache.get(qid);
+    try {
+      const api = `${WD_API}?origin=*&action=wbgetentities&ids=${encodeURIComponent(qid)}&format=json&props=labels|sitelinks|claims`;
+      const r = await fetch(api);
+      if (!r.ok) return null;
+      const js = await r.json();
+      const ent = js.entities?.[qid];
+      if (!ent) return null;
+      const lang = pickLang();
+      const label = ent.labels?.[lang]?.value || ent.labels?.en?.value || null;
+      const sitelink = ent.sitelinks?.itwiki?.title || ent.sitelinks?.enwiki?.title || null;
+      let wiki = null;
+      if (sitelink) {
+        const langForLink = ent.sitelinks?.itwiki ? 'it' : 'en';
+        const url = `${WIKI_REST.replace('{lang}', langForLink)}/page/summary/${encodeURIComponent(sitelink)}`;
+        try {
+          const s = await fetch(url);
+          if (s.ok) {
+            const js2 = await s.json();
+            wiki = { title: js2.title || label, descHtml: js2.extract_html || '', thumb: js2.thumbnail?.source || null, url: js2.content_urls?.desktop?.page || null };
+          }
+        } catch {}
+      }
+      if (!wiki?.thumb) {
+        const p18 = ent.claims?.P18?.[0]?.mainsnak?.datavalue?.value;
+        if (p18) {
+          const commons = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(p18)}?width=640`;
+          wiki = wiki || { title: label, descHtml: '', url: null };
+          wiki.thumb = commons;
+        }
+      }
+      const out = wiki || { title: label, descHtml: '', thumb: null, url: null };
+      wikiCache.set(qid, out);
+      return out;
+    } catch { return null; }
+  }
+  // Fallback ricerca per titolo Wikipedia
+  async function getWikiBySearchTitle(name, lang='it') {
+    if (!name) return null;
+    const cacheKey = `search:${lang}:${name}`;
+    if (wikiCache.has(cacheKey)) return wikiCache.get(cacheKey);
+    try {
+      const searchUrl = `https://${lang}.wikipedia.org/api/rest_v1/search/title?q=${encodeURIComponent(name)}&limit=1`;
+      const r = await fetch(searchUrl);
+      if (!r.ok) return null;
+      const js = await r.json();
+      const hit = js?.pages?.[0];
+      if (!hit || !hit.key) return null;
+      const sumUrl = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(hit.key)}`;
+      const s = await fetch(sumUrl);
+      if (!s.ok) return null;
+      const sum = await s.json();
+      const out = { title: sum.title, descHtml: sum.extract_html || '', thumb: sum.thumbnail?.source || null, url: sum.content_urls?.desktop?.page || null };
+      wikiCache.set(cacheKey, out);
+      return out;
+    } catch { return null; }
+  }
+  function formatAddress(tags={}){
+    const parts=[];
+    if(tags['addr:street']){
+      parts.push(tags['addr:street'] + (tags['addr:housenumber']? (' ' + tags['addr:housenumber']) : ''));
+    }
+    if(tags['addr:city']) parts.push(tags['addr:city']);
+    if(tags['addr:postcode']) parts.push(tags['addr:postcode']);
+    return parts.join(', ');
+  }
+  let ohLibLoaded = false;
+  async function ensureOpeningHoursLib() {
+    if (ohLibLoaded) return;
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://unpkg.com/opening_hours@3.9.0/opening_hours.js';
+      s.onload = () => res();
+      s.onerror = () => rej(new Error('opening_hours load error'));
+      document.head.appendChild(s);
+    });
+    ohLibLoaded = true;
+  }
+  async function renderOpeningHoursStatus(tags) {
+    if (!tags || !tags.opening_hours) return '';
+    try {
+      await ensureOpeningHoursLib();
+      const oh = new opening_hours(tags.opening_hours);
+      const now = new Date();
+      const isOpen = oh.getState(now);
+      let status = isOpen ? 'Aperto ora' : 'Chiuso';
+      const next = oh.getNextChange(now);
+      if (next) {
+        const hh = next.getHours().toString().padStart(2,'0');
+        const mm = next.getMinutes().toString().padStart(2,'0');
+        status += isOpen ? ` • chiude alle ${hh}:${mm}` : ` • apre alle ${hh}:${mm}`;
+      }
+      return `<div class="desc-oh">${status}</div>`;
+    } catch { return ''; }
+  }
+
+  function shortCategoryLabel(cat){ const c = CATEGORIES.find(x=>x.id===cat); return c ? c.label : cat; }
+
+  function buildBasicPopupHTML(p) {
+    const color = COLORS[p.category] || '#22d3ee';
+    const cat = shortCategoryLabel(p.category);
+    const addr = formatAddress(p.tags||{});
+    const addrLine = addr ? `<div style="font-size:12px;color:#9fb9c9;margin:4px 0;">${addr}</div>` : '';
+    const base = `
+      <div style="min-width:260px">
+        <div style="font-weight:700">${p.name}</div>
+        <div class="pill" style="border-color:${color};color:${color};display:inline-block;margin:6px 0;">${cat}</div>
+        ${addrLine}
+        <div class="desc" data-desc="1" style="color:#cbd5e1;font-size:13px;">Caricamento info…</div>
+        <div class="oh"   data-oh="1"></div>
+      </div>`;
+    return base;
+  }
+
+  async function enrichContentFor(p) {
+    // Restituisce {html, ohHtml}
+    let html = '';
+    try {
+      if (p.tags?.wikipedia) {
+        const w = await getWikiFromWikipediaTag(p.tags.wikipedia);
+        if (w) html = (w.thumb ? `<img class="desc-img" src="${w.thumb}"/>` : '') + (w.descHtml || '') + (w.url ? `<div style="margin-top:4px"><a href="${w.url}" target="_blank" rel="noopener">Wikipedia</a></div>` : '');
+      } else if (p.tags?.wikidata) {
+        const w = await getWikiFromWikidataId(p.tags.wikidata);
+        if (w) html = (w.thumb ? `<img class="desc-img" src="${w.thumb}"/>` : '') + (w.descHtml || '') + (w.url ? `<div style="margin-top:4px"><a href="${w.url}" target="_blank" rel="noopener">Approfondisci</a></div>` : '');
+      } else {
+        const w = await getWikiBySearchTitle(p.name, pickLang());
+        if (w) html = (w.thumb ? `<img class="desc-img" src="${w.thumb}"/>` : '') + (w.descHtml || '') + (w.url ? `<div style="margin-top:4px"><a href="${w.url}" target="_blank" rel="noopener">Dettagli</a></div>` : '');
+      }
+    } catch {}
+    if (!html) {
+      const addr = formatAddress(p.tags||{});
+      const parts=[];
+      if (addr) parts.push(addr);
+      if (p.tags?.start_date) parts.push(`Dal ${p.tags.start_date}`);
+      if (p.tags?.cuisine) parts.push(`Cucina: ${p.tags.cuisine}`);
+      if (parts.length) html = `<div class="desc-body">${parts.join(' • ')}</div>`;
+      else html = `<div class="desc-body">Nessuna descrizione disponibile.</div>`;
+    }
+    const ohHtml = await renderOpeningHoursStatus(p.tags);
+    return { html, ohHtml };
+  }
+
+  // Leaflet + layers
   const map = L.map('map', { zoomControl:true });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
   let userMarker=null, poiLayer=L.layerGroup().addTo(map), routeLayer=L.layerGroup().addTo(map);
@@ -326,6 +504,7 @@
 
   map.on('click', (e)=>{ if(modeManual.checked){ setOrigin(e.latlng.lat, e.latlng.lng, 'manual'); } });
 
+  // Autocomplete Nominatim
   let acTimer=null;
   manualAddress?.addEventListener('input', ()=>{
     const q = manualAddress.value.trim();
@@ -342,12 +521,7 @@
       url.searchParams.set('addressdetails', '1');
       url.searchParams.set('limit', '8');
       url.searchParams.set('countrycodes', 'it');
-      const res = await fetch(url.toString(), {
-        headers: {
-          'Accept':'application/json',
-          'User-Agent': NOMINATIM_UA
-        }
-      });
+      const res = await fetch(url.toString(), { headers: { 'Accept':'application/json' } });
       if(!res.ok) throw new Error('Geo API non disponibile');
       const data = await res.json();
       renderAC(data);
@@ -374,6 +548,7 @@
     manualAddress.value = item.querySelector('div strong')?.textContent || manualAddress.value;
   });
 
+  // Overpass
   function buildOverpassQuery(center, radiusM, selectedIds){
     const parts = selectedIds.map(id=>{
       const cat=CATEGORIES.find(c=>c.id===id);
@@ -417,6 +592,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
     return synth;
   }
 
+  // OSRM helpers
   async function osrmTableFoot(coords){
     const coordStr = coords.map(c=>`${lonOf(c)},${c.lat}`).join(';');
     const url = `${OSRM_BASE}/table/v1/foot/${coordStr}?annotations=duration`;
@@ -444,6 +620,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
   }
 
   function dwellFor(cat){ const c=CATEGORIES.find(x=>x.id===cat); return c?c.dwell:20; }
+
   function getBlockSequence(selectedIds, preferIds){
     const preset = document.getElementById('blockPreset').value;
     if(preset === 'custom'){
@@ -520,7 +697,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
       if(bestIdx<0) break;
 
       const poi = coords[bestIdx];
-      visit.push({ ...poi, travelMin: bestFit.travelMin, dwellMin: bestFit.dwellMin, preferred: preferSet.has(poi.category) });
+      visit.push({ ...poi, idx: bestIdx, travelMin: bestFit.travelMin, dwellMin: bestFit.dwellMin, preferred: preferSet.has(poi.category) });
       timeUsedMin += bestFit.travelMin + bestFit.dwellMin;
       perCatCount[poi.category] = (perCatCount[poi.category]||0) + 1;
       hasPreferred = hasPreferred || preferSet.has(poi.category);
@@ -532,7 +709,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
     let returnMin = 0;
     if(routeType==='loop' && visit.length){
       const last = visit[visit.length-1];
-      const lastIdx = coords.indexOf(last);
+      const lastIdx = last.idx;
       const backSec = durations[lastIdx][0];
       if(backSec!=null){ returnMin = Math.ceil(backSec/60); }
     }
@@ -543,8 +720,19 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
   function renderPOIs(pois){
     poiLayer.clearLayers();
     pois.forEach(p=>{
-      L.circleMarker([p.lat,p.lon],{radius:6,weight:2,color:COLORS[p.category]||'#22d3ee',fillOpacity:.25})
-        .bindPopup(`<strong>${p.name}</strong><br/><small>${p.category}</small>`).addTo(poiLayer);
+      const m = L.circleMarker([p.lat,p.lon],{radius:6,weight:2,color:COLORS[p.category]||'#22d3ee',fillOpacity:.25}).addTo(poiLayer);
+      const baseHTML = buildBasicPopupHTML(p);
+      m.bindPopup(baseHTML);
+      m.on('popupopen', (e)=>{
+        (async ()=>{
+          const container = e.popup.getElement();
+          const enriched = await enrichContentFor(p);
+          const descNode = container.querySelector('[data-desc]');
+          const ohNode = container.querySelector('[data-oh]');
+          if(descNode) descNode.innerHTML = enriched.html;
+          if(ohNode) ohNode.innerHTML = enriched.ohHtml;
+        })();
+      });
     });
   }
 
@@ -557,15 +745,8 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
         coords = route.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
       }
     } catch (_) { }
-    if (!coords || !coords.length) {
-      coords = [
-        [prev.lat, lonOf(prev)],
-        [next.lat, lonOf(next)]
-      ];
-    }
-    L.polyline(coords, { color: color || '#22d3ee', weight: 5, opacity: 0.95 })
-      .addTo(routeLayer)
-      .bringToFront();
+    if (!coords || !coords.length) { coords = [[prev.lat, lonOf(prev)], [next.lat, lonOf(next)]]; }
+    L.polyline(coords, { color: color || '#22d3ee', weight: 5, opacity: 0.95 }).addTo(routeLayer).bringToFront();
     coords.forEach(c => bounds.push(c));
   }
 
@@ -578,32 +759,69 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
     for (const s of steps) {
       const segColor = COLORS[s.category] || '#22d3ee';
       await osrmRouteFootDraw(prev, s, bounds, segColor);
-      const badge = s.preferred ? `<span class="pill" style="border-color:${segColor};color:${segColor}">preferito</span>` : '';
-      L.marker([s.lat, s.lon]).bindPopup(
-        `<strong>${s.name}</strong> ${badge}<br/><small>${s.category} • spost. ~${s.travelMin} min • sosta ~${s.dwellMin} min</small>`
-      ).addTo(routeLayer);
+
+      const marker = L.marker([s.lat, s.lon]).addTo(routeLayer);
+      const baseHTML = `
+        <div style="min-width:260px">
+          <div style="font-weight:700">${s.name}</div>
+          <div class="pill" style="border-color:${segColor};color:${segColor};display:inline-block;margin:6px 0;">${shortCategoryLabel(s.category)}</div>
+          <div style="font-size:12px;color:#9fb9c9;margin:4px 0;">Spost. ~${s.travelMin??'?'} min • Sosta ~${s.dwellMin??'?'} min</div>
+          <div class="desc" data-desc="1" style="color:#cbd5e1;font-size:13px;">Caricamento info…</div>
+          <div class="oh" data-oh="1"></div>
+        </div>`;
+      marker.bindPopup(baseHTML);
+      marker.on('popupopen', (e)=>{
+        (async ()=>{
+          const container = e.popup.getElement();
+          const enriched = await enrichContentFor(s);
+          const descNode = container.querySelector('[data-desc]');
+          const ohNode = container.querySelector('[data-oh]');
+          if(descNode) descNode.innerHTML = enriched.html;
+          if(ohNode) ohNode.innerHTML = enriched.ohHtml;
+        })();
+      });
+
       prev = s;
     }
-    if (routeType === 'loop' && steps.length) {
-      await osrmRouteFootDraw(prev, originForDraw, bounds, '#5eead4');
-    }
+    if (routeType === 'loop' && steps.length) { await osrmRouteFootDraw(prev, originForDraw, bounds, '#5eead4'); }
     map.fitBounds(bounds,{padding:[28,28]});
   }
 
   async function renderItinerary(steps, returnMin = 0, routeType = 'linear', originMode='auto'){
     const box = document.getElementById('itinerary');
     if (!steps || !steps.length) { box.innerHTML = `<div class="step">Nessuna tappa rientra nel tempo impostato.</div>`; return; }
+    box.innerHTML = ''; // reset
     let t=0;
-    const html = steps.map((s,i)=>{ t += (s.travelMin||0)+(s.dwellMin||0);
-      const color = COLORS[s.category]||'#22d3ee'; const badge = s.preferred?`<span class="pill" style="border-color:${color};color:${color}">preferito</span>`:'';
-      return `<div class="step"><div><strong>${i+1}. ${s.name}</strong> ${badge}
-        <span class="pill" style="border-color:${color};color:${color}">${s.category}</span></div>
+    for (let i=0; i<steps.length; i++){
+      const s = steps[i];
+      t += (s.travelMin||0)+(s.dwellMin||0);
+      const color = COLORS[s.category]||'#22d3ee';
+      const el = document.createElement('div');
+      el.className = 'step';
+      el.innerHTML = `
+        <div><strong>${i+1}. ${s.name}</strong>
+          <span class="pill" style="border-color:${color};color:${color}">${shortCategoryLabel(s.category)}</span>
+        </div>
         <div><small>→ spostamento ~${s.travelMin??'?'} min, sosta ~${s.dwellMin??'?'} min</small></div>
-        <div class="desc" style="margin-top:6px;color:#cbd5e1;font-size:13px;">Tappa consigliata.</div></div>`;
-    }).join('');
+        <div class="desc-body" data-desc="1">Caricamento info…</div>
+        <div class="desc-oh" data-oh="1"></div>
+      `;
+      box.appendChild(el);
+      // Enrichment async per la CARD lista
+      (async ()=>{
+        const enriched = await enrichContentFor(s);
+        const descNode = el.querySelector('[data-desc]');
+        const ohNode = el.querySelector('[data-oh]');
+        if (descNode) descNode.innerHTML = enriched.html;
+        if (ohNode) ohNode.innerHTML = enriched.ohHtml;
+      })();
+    }
     const tail = (routeType==='loop' && returnMin>0)? `<div class="step" style="opacity:.85;">Rientro al punto di partenza: ~${returnMin} min</div>` : '';
     const originBadge = `<div class="step" style="opacity:.85;">Origine: <strong>${originMode==='manual'?'Manuale':'Geolocalizzata'}</strong></div>`;
-    box.innerHTML = originBadge + html + tail + `<div class="step" style="opacity:.85;"><strong>Tempo stimato totale</strong>: ~${t + (routeType==='loop'?returnMin:0)} min</div>`;
+    const total = `<div class="step" style="opacity:.85;"><strong>Tempo stimato totale</strong>: ~${t + (routeType==='loop'?returnMin:0)} min</div>`;
+    box.insertAdjacentHTML('afterbegin', originBadge);
+    if (tail) box.insertAdjacentHTML('beforeend', tail);
+    box.insertAdjacentHTML('beforeend', total);
   }
 
   const MAX_WAYPOINTS = 8;
@@ -697,34 +915,35 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
     const gurl = buildGoogleMapsURL(origin, plan.steps, routeType, moveMode);
     if(gurl){ gbtn.disabled=false; gbtn.onclick=()=>openInGoogleMaps(gurl); } else { gbtn.disabled=true; gbtn.onclick=null; }
   }
-
-  $('btnFind').addEventListener('click', async ()=>{
-    const btn = $('btnFind');
+document.getElementById('btnFind').addEventListener('click', async ()=>{
+    const btn = document.getElementById('btnFind');
     btn.disabled=true; btn.textContent='Elaboro…';
     try{ await mainFlow(); } catch(e){ if(e && e.message) console.warn(e.message); }
     finally{ btn.disabled=false; btn.textContent='Trova POI & Genera itinerario'; }
   });
 
   btnGeo.addEventListener('click', async ()=>{
-    modeAuto.checked=true; modeManual.checked=false; manualWrap.style.display='none'; $('geoWrap').style.display='block';
+    modeAuto.checked=true; modeManual.checked=false; manualWrap.style.display='none'; document.getElementById('geoWrap').style.display='block';
     await requestGeolocation();
     if(lastOrigin) map.setView([lastOrigin.lat,lonOf(lastOrigin)], 15);
   });
 
   modeAuto.addEventListener('change', ()=>{
-    if(modeAuto.checked){ manualWrap.style.display='none'; $('geoWrap').style.display='block'; }
+    if(modeAuto.checked){ manualWrap.style.display='none'; document.getElementById('geoWrap').style.display='block'; }
   });
   modeManual.addEventListener('change', ()=>{
-    if(modeManual.checked){ manualWrap.style.display='block'; $('geoWrap').style.display='none'; }
+    if(modeManual.checked){ manualWrap.style.display='block'; document.getElementById('geoWrap').style.display='none'; }
   });
 
   (async()=>{
     map.setView([45.07,11.79], 12);
+    const isFile = location.protocol === 'file:';
+    if(isFile){ modeManual.checked=true; modeAuto.checked=false; manualWrap.style.display='block'; document.getElementById('geoWrap').style.display='none'; }
     const usp=new URLSearchParams(location.search);
     if(usp.has('start')){
       const [la,lo]=(usp.get('start')||'').split(',').map(parseFloat);
-      if(isFinite(la)&&isFinite(lo)){ modeManual.checked=true; modeAuto.checked=false; manualWrap.style.display='block'; $('geoWrap').style.display='none'; setOrigin(la,lo,'manual'); }
-    } else {
+      if(isFinite(la)&&isFinite(lo)){ modeManual.checked=true; modeAuto.checked=false; manualWrap.style.display='block'; document.getElementById('geoWrap').style.display='none'; setOrigin(la,lo,'manual'); }
+    } else if(!isFile) {
       const perm = await checkPermission();
       if(perm==='granted' && modeAuto.checked){ await requestGeolocation(); }
     }
