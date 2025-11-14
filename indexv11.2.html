@@ -3,21 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>TourNow — v14 (routing realistico + km da traccia)</title>
+  <title>TourNow — v16 (categorie raggruppate, UI semplificata)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin>
-async function fetchGraphHopperBikeRoute(start, end) {
-  console.log("[GRAPHOPPER] Richiesta bici sicura attivata");
-  const res = await fetch(url);
-  if (!res.ok) {
-    console.error("[GRAPHOPPER] Errore nella richiesta:", res.status);
-    return null;
-  }
-  const data = await res.json();
-  const coords = data.paths[0].points.coordinates.map(p => [p[1], p[0]]);
-  return coords;
-}
-</script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
   <style>
     :root { --bg:#0b0b0c; --panel:#151518; --text:#f1f5f9; --muted:#94a3b8; --accent:#22d3ee; --border:#2b2b33; }
     *{box-sizing:border-box}
@@ -31,7 +19,7 @@ async function fetchGraphHopperBikeRoute(start, end) {
     .panel{padding:16px;background:#151518;border-right:1px solid #23232a}
     .row{display:flex;gap:8px}.row>*{flex:1}
     .field{margin-bottom:12px}.label{display:block;font-size:12px;color:#94a3b8;margin-bottom:6px}
-    .checkboxes{display:flex;flex-wrap:wrap;gap:8px}
+    .checkboxes{display:flex;flex-direction:column;gap:8px}
     .chip{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #2b2b33;border-radius:12px;background:#101014;user-select:none}
     .chip input{accent-color:#22d3ee}
     input[type="number"],input[type="text"],select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #2b2b33;background:#101014;color:#f1f5f9}
@@ -43,7 +31,7 @@ async function fetchGraphHopperBikeRoute(start, end) {
     .step{padding:10px 12px;background:#101014;border:1px solid #2b2b33;border-radius:10px;margin-bottom:8px}
     .legend{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
     .legend .tag{font-size:11px;padding:4px 8px;background:#101014;border:1px solid #2b2b33;border-radius:999px;color:#cbd5e1}
-    .ai-note{font-size:12px;color:#9ad2df;margin:6px 0 0}
+    .ai-note{font-size:12px;color:#9fb9df;margin:6px 0 0}
     .title{font-weight:800;margin:4px 0 6px}
     .summary{font-size:13px;color:#cfe9ef;margin:0 0 8px}
     .pill{display:inline-block;font-size:11px;padding:2px 6px;border-radius:999px;border:1px solid #2b2b33;margin-left:6px}
@@ -62,12 +50,55 @@ async function fetchGraphHopperBikeRoute(start, end) {
     .desc-img{width:100%;border-radius:8px;margin-top:6px}
     .desc-body{color:#cbd5e1;font-size:13px;margin-top:6px}
     .desc-oh{margin-top:4px;color:#cbd5e1;font-size:12px}
+
+    /* Dropdown categorie raggruppate */
+    .cat-group{
+      border:1px solid #2b2b33;
+      border-radius:10px;
+      background:#101014;
+      padding:6px 8px 4px;
+    }
+    .cat-group summary{
+      cursor:pointer;
+      list-style:none;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      font-size:13px;
+      color:#cbd5e1;
+    }
+    .cat-group[open] summary{
+      color:#f9fafb;
+    }
+    .cat-group summary::-webkit-details-marker{
+      display:none;
+    }
+    .cat-summary-label{
+      display:flex;
+      align-items:center;
+      gap:6px;
+    }
+    .cat-summary-chevron{
+      font-size:11px;
+      color:#64748b;
+    }
+    .cat-sublist{
+      margin-top:6px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+    }
+    .cat-sublist .chip{
+      padding:6px 8px;
+      border-radius:999px;
+      font-size:12px;
+    }
   </style>
 </head>
 <body>
 <header>
   <h1>TourNow — tour operator istantaneo</h1>
-  <span class="badge">v14 • routing realistico + km da traccia</span>
+  <span class="badge">v16 • km realistici + categorie raggruppate + UI pulita</span>
 </header>
 <div class="warn">
   ℹ️ <strong>Nota per uso locale:</strong> la geolocalizzazione funziona solo su <strong>HTTPS</strong> o <strong>localhost</strong> (non su <code>file://</code>). Avvia: <code>python -m http.server 5500</code> → apri <code>http://localhost:5500</code>. Oppure usa <strong>partenza manuale</strong>.
@@ -126,14 +157,13 @@ async function fetchGraphHopperBikeRoute(start, end) {
         <input id="radiusKm" type="number" min="0.5" step="0.5" value="2.5"/>
       </div>
     </div>
+
+    <!-- CATEGORIE RAGGRUPPATE -->
     <div class="field">
       <span class="label">Categorie da includere</span>
       <div class="checkboxes" id="interests"></div>
     </div>
-    <div class="row">
-      <div class="field"><span class="label">Preferisci</span><div class="checkboxes" id="preferBox"></div></div>
-      <div class="field"><span class="label">Evita</span><div class="checkboxes" id="avoidBox"></div></div>
-    </div>
+
     <div class="row">
       <div class="field">
         <span class="label">Schema blocchi</span>
@@ -160,10 +190,7 @@ async function fetchGraphHopperBikeRoute(start, end) {
         <input id="maxPerCat" type="number" min="1" step="1" value="3"/>
       </div>
     </div>
-    <div class="field">
-      <input id="enforcePreferred" type="checkbox" checked/>
-      <label for="enforcePreferred">Obbliga ≥1 preferita (se possibile)</label>
-    </div>
+
     <div class="field">
       <input id="safeBike" type="checkbox"/>
       <label for="safeBike">Bici sicura (beta)</label>
@@ -191,7 +218,6 @@ async function fetchGraphHopperBikeRoute(start, end) {
   const OSRM_BASE = 'https://router.project-osrm.org';
   const BIKE_TIME_FACTOR = 0.35, BIKE_DWELL_FACTOR = 0.8, BIKE_RADIUS_BONUS_KM = 2;
   const WALK_SAFETY_MULTIPLIER = 1.9; // stima prudenziale a piedi
-  const PREFERRED_BONUS_SECONDS = 6 * 60;
   const DIST_BACKTRACK_PENALTY = 0.40;
   const DIST_OUTWARD_BONUS     = 0.15;
   const COLORS = {}, toRad = d => d * Math.PI / 180;
@@ -227,51 +253,141 @@ async function fetchGraphHopperBikeRoute(start, end) {
     const hues = [188, 160, 40, 12, 320, 260, 90, 200, 22, 280, 140, 30];
     return `hsl(${hues[i % hues.length]} 90% 60%)`;
   }
+
   const CATEGORIES = [
-    { id: "culture", label: "Musei/Gallerie", query: '["tourism"~"museum|gallery"]', dwell: 40 },
-    { id: "historic", label: "Siti storici", query: '["historic"]', dwell: 25 },
-    { id: "monument", label: "Monumenti/Statue", query: '["historic"="monument"]', dwell: 15 },
-    { id: "castle", label: "Castelli/Forti", query: '["historic"~"castle|fort"]', dwell: 35 },
-    { id: "church", label: "Luoghi di culto", query: '["amenity"="place_of_worship"]', dwell: 20 },
-    { id: "theatre", label: "Teatri/Opera", query: '["amenity"~"theatre|arts_centre"]', dwell: 25 },
-    { id: "landmark", label: "Landmark", query: '["tourism"="attraction"]', dwell: 20 },
-    { id: "viewpoint", label: "Punti panoramici", query: '["tourism"="viewpoint"]', dwell: 15 },
-    { id: "bridge", label: "Ponti scenici", query: '["man_made"="bridge"]', dwell: 10 },
-    { id: "tower", label: "Torri/Belvedere", query: '["man_made"="tower"]', dwell: 15 },
-    { id: "square", label: "Piazze", query: '["place"="square"]', dwell: 15 },
-    { id: "fountain", label: "Fontane", query: '["amenity"="fountain"]', dwell: 10 },
-    { id: "park", label: "Parchi/Giardini", query: '["leisure"~"park|garden|common"]', dwell: 30 },
-    { id: "water", label: "Laghetti/Sponde", query: '["natural"~"water|bay"]', dwell: 20 },
-    { id: "beach", label: "Spiagge/Lidi", query: '["natural"="beach"]', dwell: 30 },
-    { id: "food", label: "Ristoranti/Bar", query: '["amenity"~"restaurant|cafe|fast_food|bar"]', dwell: 25 },
-    { id: "gelato", label: "Gelaterie", query: '["amenity"="ice_cream"]', dwell: 15 },
-    { id: "bakery", label: "Panifici/Pasticcerie", query: '["shop"~"bakery|pastry"]', dwell: 15 },
-    { id: "coffee", label: "Caffè specialty", query: '["amenity"="cafe"]["coffee"!=""]', dwell: 20 },
-    { id: "wine", label: "Enoteche/Wine bar", query: '["amenity"~"bar|pub"]["wine"!=""]', dwell: 20 },
-    { id: "market", label: "Mercati locali", query: '["amenity"~"marketplace|market"]', dwell: 20 },
-    { id: "streetart", label: "Street Art/Murales", query: '["tourism"="artwork"]["artwork_type"~"mural|graffiti|street_art"]', dwell: 15 },
-    { id: "exhibit", label: "Mostre/Esposizioni", query: '["exhibition"="permanent"]', dwell: 25 },
-    { id: "shopping", label: "Vie dello shopping", query: '["shop"]["name"]', dwell: 20 }
+    { id: "culture",  label: "Musei/Gallerie",        query: '["tourism"~"museum|gallery"]',                     dwell: 40 },
+    { id: "historic", label: "Siti storici",          query: '["historic"]',                                     dwell: 25 },
+    { id: "monument", label: "Monumenti/Statue",      query: '["historic"="monument"]',                          dwell: 15 },
+    { id: "castle",   label: "Castelli/Forti",        query: '["historic"~"castle|fort"]',                       dwell: 35 },
+    { id: "church",   label: "Luoghi di culto",       query: '["amenity"="place_of_worship"]',                  dwell: 20 },
+    { id: "theatre",  label: "Teatri/Opera",          query: '["amenity"~"theatre|arts_centre"]',               dwell: 25 },
+
+    { id: "landmark", label: "Landmark",              query: '["tourism"="attraction"]',                         dwell: 20 },
+    { id: "viewpoint",label: "Punti panoramici",      query: '["tourism"="viewpoint"]',                          dwell: 15 },
+    { id: "bridge",   label: "Ponti scenici",         query: '["man_made"="bridge"]',                            dwell: 10 },
+    { id: "tower",    label: "Torri/Belvedere",       query: '["man_made"="tower"]',                             dwell: 15 },
+    { id: "square",   label: "Piazze",                query: '["place"="square"]',                               dwell: 15 },
+    { id: "fountain", label: "Fontane",               query: '["amenity"="fountain"]',                           dwell: 10 },
+    { id: "streetart",label: "Street Art/Murales",    query: '["tourism"="artwork"]["artwork_type"~"mural|graffiti|street_art"]', dwell: 15 },
+
+    { id: "park",     label: "Parchi/Giardini",       query: '["leisure"~"park|garden|common"]',                dwell: 30 },
+    { id: "water",    label: "Laghetti/Sponde",       query: '["natural"~"water|bay"]',                          dwell: 20 },
+    { id: "beach",    label: "Spiagge/Lidi",          query: '["natural"="beach"]',                              dwell: 30 },
+
+    { id: "food",     label: "Ristoranti/Bar",        query: '["amenity"~"restaurant|cafe|fast_food|bar"]',      dwell: 25 },
+    { id: "gelato",   label: "Gelaterie",             query: '["amenity"="ice_cream"]',                          dwell: 15 },
+    { id: "bakery",   label: "Panifici/Pasticcerie",  query: '["shop"~"bakery|pastry"]',                         dwell: 15 },
+    { id: "coffee",   label: "Caffè specialty",       query: '["amenity"="cafe"]["coffee"!=""]',                 dwell: 20 },
+    { id: "wine",     label: "Enoteche/Wine bar",     query: '["amenity"~"bar|pub"]["wine"!=""]',                dwell: 20 },
+    { id: "market",   label: "Mercati locali",        query: '["amenity"~"marketplace|market"]',                 dwell: 20 },
+
+    { id: "exhibit",  label: "Mostre/Esposizioni",    query: '["exhibition"="permanent"]',                       dwell: 25 },
+    { id: "shopping", label: "Vie dello shopping",    query: '["shop"]["name"]',                                 dwell: 20 }
   ];
-  const interestsWrap = $('interests'), preferWrap = $('preferBox'), avoidWrap = $('avoidBox'), legendWrap = $('legend');
+
+  // 6 MACROCATEGORIE con sottocategorie
+  const CATEGORY_GROUPS = [
+    {
+      id: "grp_culture",
+      label: "Cultura & Storia",
+      cats: ["culture","historic","monument","castle","church","theatre","exhibit"]
+    },
+    {
+      id: "grp_landmark",
+      label: "Landmark & Panorami",
+      cats: ["landmark","viewpoint","tower","bridge","square","streetart","fountain"]
+    },
+    {
+      id: "grp_nature",
+      label: "Natura & Relax",
+      cats: ["park","water","beach"]
+    },
+    {
+      id: "grp_food",
+      label: "Food & Drink",
+      cats: ["food","gelato","bakery","coffee","wine","market"]
+    },
+    {
+      id: "grp_shopping",
+      label: "Shopping & Lifestyle",
+      cats: ["shopping"]
+    },
+    {
+      id: "grp_other",
+      label: "Altri POI",
+      cats: [] // per eventuali future categorie extra
+    }
+  ];
+
+  // preselezione di default
+  const DEFAULT_SELECTED = new Set(["landmark","square","park","food","gelato"]);
+
+  const interestsWrap = $('interests'),
+        legendWrap   = $('legend');
   const radiusHint = $('radiusHint'), geoStatus = $('geoStatus'), btnGeo = $('btnGeo');
   const modeAuto = $('modeAuto'), modeManual = $('modeManual'), manualWrap = $('manualWrap');
   const manualAddress = $('manualAddress'), acList = $('acList'), coordsPill = $('coordsPill');
   const safeBike = $('safeBike');
+
+  // colori + legenda
   CATEGORIES.forEach((c, i) => {
     COLORS[c.id] = autoColor(i);
-    const addChip = (wrap, checked = false) => {
-      const l = document.createElement('label'); l.className = 'chip';
-      l.innerHTML = `<input type="checkbox" value="${c.id}" ${checked ? 'checked' : ''}/> ${c.label}`;
-      wrap.appendChild(l);
-    };
-    addChip(interestsWrap, i < 5); addChip(preferWrap); addChip(avoidWrap);
-    const tag = document.createElement('span'); tag.className = 'tag'; tag.style.borderColor = COLORS[c.id]; tag.style.color = COLORS[c.id]; tag.textContent = c.label; legendWrap.appendChild(tag);
+
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.style.borderColor = COLORS[c.id];
+    tag.style.color = COLORS[c.id];
+    tag.textContent = c.label;
+    legendWrap.appendChild(tag);
   });
+
+  // UI categorie raggruppate
+  function buildGroupedCategoryUI() {
+    interestsWrap.innerHTML = '';
+
+    CATEGORY_GROUPS.forEach(group => {
+      if (!group.cats.length) return;
+
+      const details = document.createElement('details');
+      details.className = 'cat-group';
+      details.open = true;
+
+      const summary = document.createElement('summary');
+      const labelDiv = document.createElement('div');
+      labelDiv.className = 'cat-summary-label';
+      labelDiv.textContent = group.label;
+
+      const chevron = document.createElement('span');
+      chevron.className = 'cat-summary-chevron';
+      chevron.textContent = '▾';
+
+      summary.appendChild(labelDiv);
+      summary.appendChild(chevron);
+      details.appendChild(summary);
+
+      const sublist = document.createElement('div');
+      sublist.className = 'cat-sublist';
+
+      group.cats.forEach(catId => {
+        const cat = CATEGORIES.find(c => c.id === catId);
+        if (!cat) return;
+        const checked = DEFAULT_SELECTED.has(catId);
+        const l = document.createElement('label');
+        l.className = 'chip';
+        l.innerHTML = `<input type="checkbox" value="${cat.id}" ${checked ? 'checked' : ''}/> ${cat.label}`;
+        sublist.appendChild(l);
+      });
+
+      details.appendChild(sublist);
+      interestsWrap.appendChild(details);
+    });
+  }
+
+  buildGroupedCategoryUI();
+
   const readChecks = wrap => [...wrap.querySelectorAll('input[type=checkbox]')].filter(x => x.checked).map(x => x.value);
   const getSelectedCategoryIds = () => readChecks(interestsWrap);
-  const getPreferIds = () => readChecks(preferWrap);
-  const getAvoidIds = () => readChecks(avoidWrap);
+
   function detectCategory(tags) {
     if (tags.tourism === "museum" || tags.tourism === "gallery") return "culture";
     if (tags.historic === "monument") return "monument";
@@ -299,6 +415,7 @@ async function fetchGraphHopperBikeRoute(start, end) {
     if (tags.shop && tags.name) return "shopping";
     return "landmark";
   }
+
   // --- WIKI HELPERS ---
   const WIKI_REST = 'https://{lang}.wikipedia.org/api/rest_v1';
   const WD_API = 'https://www.wikidata.org/w/api.php';
@@ -661,21 +778,21 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
     return totalKm;
   }
 
-  function getBlockSequence(selectedIds, preferIds) {
+  function getBlockSequenceUI() {
+    const selected = getSelectedCategoryIds();
     const preset = document.getElementById('blockPreset').value;
     if (preset === 'custom') {
       const raw = (document.getElementById('blockCustom').value || '').split(',').map(s => s.trim()).filter(Boolean);
-      return raw.length ? raw : selectedIds;
+      return raw.length ? raw : selected;
     }
     if (preset !== 'auto') { return preset.split(','); }
     const unique = arr => [...new Set(arr)];
-    const others = selectedIds.filter(c => !preferIds.includes(c));
-    const restKnown = CATEGORIES.map(c => c.id).filter(c => !selectedIds.includes(c));
-    return unique([...preferIds, ...others, ...restKnown]);
+    const restKnown = CATEGORIES.map(c => c.id).filter(c => !selected.includes(c));
+    return unique([...selected, ...restKnown]);
   }
 
-  async function planRouteReal(origin, pois, budgetMin, preferSet, avoidSet, enforcePreferred, maxPerCat, blockSeq, routeType, moveMode) {
-    const filtered = pois.filter(p => !avoidSet.has(p.category));
+  async function planRouteReal(origin, pois, budgetMin, maxPerCat, blockSeq, routeType, moveMode) {
+    const filtered = pois; // niente "evita": usiamo tutti i POI
     const maxPois = Math.min(35, Math.max(5, parseInt(document.getElementById('maxPois').value || '35', 10)));
     const sorted = [...filtered].sort((a, b) => {
       const da = haversineKm(origin, { lat: a.lat, lon: a.lon });
@@ -703,7 +820,6 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
     let current = 0;
     let timeUsedMin = 0;
     const perCatCount = {};
-    let hasPreferred = false;
     let blockIdx = 0;
     const blockLen = Math.max(1, blockSeq.length);
 
@@ -733,11 +849,6 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
       let candidates = [...unvisited].filter(i =>
         (perCatCount[coords[i].category] || 0) < maxPerCat
       );
-
-      if (enforcePreferred && !hasPreferred) {
-        const feasPref = candidates.filter(i => preferSet.has(coords[i].category) && wouldFit(i, true));
-        if (feasPref.length) candidates = feasPref;
-      }
 
       const desired = blockSeq[blockIdx % blockLen];
       let bestIdx = -1;
@@ -769,11 +880,10 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
             backPenaltySec = Math.abs(radialDelta) * (backPenaltyBase * 0.5);
           }
         }
-        const preferBonus = preferSet.has(cand.category) ? PREFERRED_BONUS_SECONDS : 0;
         const blockBonus = priorityBlock ? 120 : 0;
         const effectiveSec = Math.max(
           1,
-          fit.sec + backPenaltySec - outwardBonusSec - preferBonus - blockBonus
+          fit.sec + backPenaltySec - outwardBonusSec - blockBonus
         );
         return { fit, effectiveSec };
       }
@@ -802,12 +912,10 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
       visit.push({
         ...poi,
         travelMin: bestFit.travelMin,
-        dwellMin: bestFit.dwellMin,
-        preferred: preferSet.has(poi.category)
+        dwellMin: bestFit.dwellMin
       });
       timeUsedMin += bestFit.travelMin + bestFit.dwellMin;
       perCatCount[poi.category] = (perCatCount[poi.category] || 0) + 1;
-      hasPreferred = hasPreferred || preferSet.has(poi.category);
       unvisited.delete(bestIdx);
       current = bestIdx;
       blockIdx = (blockIdx + 1) % blockLen;
@@ -822,7 +930,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
         returnMin = Math.ceil(backSec / 60);
       }
     }
-    return { steps: visit, timeUsedMin, returnMin, hasPreferred };
+    return { steps: visit, timeUsedMin, returnMin };
   }
 
   function renderPOIs(pois) {
@@ -1011,21 +1119,8 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
     return `https://www.google.com/maps/dir/?${params.toString()}`;
   }
   function openInGoogleMaps(url) { if (!url) return; window.open(url, '_blank', 'noopener,noreferrer'); }
-  function getBlockSequenceUI() {
-    const selected = getSelectedCategoryIds();
-    const preferIds = getPreferIds();
-    const preset = document.getElementById('blockPreset').value;
-    if (preset === 'custom') {
-      const raw = (document.getElementById('blockCustom').value || '').split(',').map(s => s.trim()).filter(Boolean);
-      return raw.length ? raw : selected;
-    }
-    if (preset !== 'auto') { return preset.split(','); }
-    const unique = arr => [...new Set(arr)];
-    const others = selected.filter(c => !preferIds.includes(c));
-    const restKnown = CATEGORIES.map(c => c.id).filter(c => !selected.includes(c));
-    return unique([...preferIds, ...others, ...restKnown]);
-  }
   function getStartMode() { return modeManual.checked ? 'manual' : 'auto'; }
+
   async function getOriginForFlow() {
     try {
       const usp = new URLSearchParams(location.search);
@@ -1067,17 +1162,14 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
     const origin = await getOriginForFlow();
     const selected = getSelectedCategoryIds();
     if (!selected.length) {
-      alert('Seleziona almeno una categoria.');
+      alert('Seleziona almeno una sottocategoria in uno dei gruppi.');
       return;
     }
     const timeBudget = Math.max(15, parseInt(document.getElementById('timeBudget').value || '60', 10));
     const routeType = document.getElementById('routeType').value;
     const moveMode = document.getElementById('moveMode').value;
     const radiusKm = Math.max(0.5, parseFloat(document.getElementById('radiusKm').value || '2.5'));
-    const preferIds = getPreferIds(), avoidIds = getAvoidIds();
-    const preferSet = new Set(preferIds), avoidSet = new Set(avoidIds);
     const maxPerCat = Math.max(1, parseInt(document.getElementById('maxPerCat').value || '3', 10));
-    const enforcePreferred = document.getElementById('enforcePreferred').checked;
     const blockSeq = getBlockSequenceUI();
     const effRadiusKm = radiusKm + (moveMode === 'bike' ? BIKE_RADIUS_BONUS_KM : 0);
     radiusHint.textContent = moveMode === 'bike'
@@ -1085,16 +1177,13 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
       : `Raggio effettivo a piedi: ${effRadiusKm.toFixed(1)} km`;
 
     const pois = await fetchPOIs(origin, selected, Math.round(effRadiusKm * 1000));
-    const filtered = pois.filter(p => !avoidSet.has(p.category));
+    const filtered = pois;
     renderPOIs(filtered);
 
     const plan = await planRouteReal(
       origin,
       filtered,
       timeBudget,
-      preferSet,
-      avoidSet,
-      enforcePreferred,
       maxPerCat,
       blockSeq,
       routeType,
@@ -1171,18 +1260,7 @@ relation${cat.query}(around:${radiusM},${center.lat},${lonOf(center)});`.trim();
       }
     } catch (_) { }
   })();
-
-async function fetchGraphHopperBikeRoute(start, end) {
-  console.log("[GRAPHOPPER] Richiesta bici sicura attivata");
-  const res = await fetch(url);
-  if (!res.ok) {
-    console.error("[GRAPHOPPER] Errore nella richiesta:", res.status);
-    return null;
-  }
-  const data = await res.json();
-  const coords = data.paths[0].points.coordinates.map(p => [p[1], p[0]]);
-  return coords;
-}
 </script>
 </body>
 </html>
+
